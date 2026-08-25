@@ -51,6 +51,35 @@ services:
     command: >-
       /bin/sh -c "alembic upgrade head &&
       uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # Process nền độc lập với web server. Kích hoạt có chủ đích bằng:
+  # docker compose --profile scheduler up --build
+  scheduler:
+    build: .
+    profiles: ["scheduler"]
+    container_name: movie-booking-scheduler
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-movie_booking}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      app:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app
+    command: python -m app.scripts.run_collector_scheduler
 
   # Tuỳ chọn: giao diện web để xem/quản lý database trực quan,
   # đỡ phải gõ lệnh SQL thủ công lúc mới học. Bỏ comment nếu muốn dùng.

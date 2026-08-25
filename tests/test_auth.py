@@ -1,5 +1,6 @@
 import pytest
 
+from app.core.config import settings
 from tests.conftest import register_and_login
 
 
@@ -29,3 +30,24 @@ async def test_duplicate_registration_and_wrong_password(client):
         json={"email": payload["email"], "password": "wrong-password"},
     )
     assert wrong.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_login_cookie_can_be_secured_for_production(client, monkeypatch):
+    monkeypatch.setattr(settings, "COOKIE_SECURE", True)
+    await client.post(
+        "/auth/register",
+        json={
+            "email": "secure-cookie@example.com",
+            "full_name": "Secure Cookie",
+            "password": "password123",
+        },
+    )
+
+    response = await client.post(
+        "/auth/login",
+        json={"email": "secure-cookie@example.com", "password": "password123"},
+    )
+
+    assert response.status_code == 200
+    assert "Secure" in response.headers["set-cookie"]

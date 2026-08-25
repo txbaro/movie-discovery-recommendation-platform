@@ -21,7 +21,7 @@ class Base(DeclarativeBase):
 
 # echo=True sẽ in ra mọi câu SQL được chạy — hữu ích lúc học/debug,
 # nên tắt (False) khi deploy thật vì làm log rối và ảnh hưởng hiệu năng.
-engine = create_async_engine(settings.DATABASE_URL, echo=True)
+engine = create_async_engine(settings.DATABASE_URL, echo=settings.SQL_ECHO)
 
 # Factory để tạo session mới cho mỗi request.
 # expire_on_commit=False giúp object vẫn dùng được sau khi commit

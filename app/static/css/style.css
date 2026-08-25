@@ -44,6 +44,30 @@ body {
 .eyebrow { color: var(--primary); letter-spacing: .12em; font-size: .75rem; font-weight: 800; }
 .discovery-hero .eyebrow { color: #ff777d; margin-bottom: 8px; }
 
+.freshness-panel {
+    padding: 20px; margin-bottom: 24px; border: 1px solid var(--border);
+    border-radius: 16px; background: var(--surface); box-shadow: 0 8px 24px rgba(0,0,0,.04);
+}
+.freshness-heading {
+    display: flex; justify-content: space-between; align-items: end; gap: 14px;
+    margin-bottom: 14px;
+}
+.freshness-heading h2 { margin-top: 3px; font-size: 1.25rem; }
+.freshness-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.freshness-item {
+    padding: 14px; border: 1px solid #dce9df; border-radius: 11px; background: #f7fcf8;
+}
+.freshness-source { display: flex; align-items: center; gap: 8px; text-transform: capitalize; }
+.freshness-dot { width: 9px; height: 9px; border-radius: 50%; background: #2e9f5b; }
+.freshness-item p { margin-top: 6px; color: #27643d; font-size: .82rem; font-weight: 650; }
+.freshness-item small { display: block; margin-top: 5px; color: var(--muted); }
+.freshness-stale, .freshness-unknown, .freshness-item.has-warning {
+    border-color: #eed49a; background: #fffaf0;
+}
+.freshness-stale .freshness-dot, .freshness-unknown .freshness-dot,
+.freshness-item.has-warning .freshness-dot { background: #d18a12; }
+.freshness-stale p, .freshness-unknown p, .freshness-item.has-warning p { color: #875d12; }
+
 .semantic-recommender {
     padding: 24px; margin-bottom: 24px; border: 1px solid #ead6d7;
     border-radius: 16px; background: linear-gradient(135deg, #fff 55%, #fff1f2);
@@ -318,6 +342,7 @@ form.auth-form input {
     .navbar-links a { margin-left: 12px; }
     .container { padding: 22px 16px 48px; }
     .discovery-hero { padding: 30px 22px; }
+    .freshness-grid { grid-template-columns: 1fr; }
     .discovery-filters { grid-template-columns: 1fr; }
     .movie-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .movie-card img, .poster-placeholder { height: 230px; }

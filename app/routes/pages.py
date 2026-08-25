@@ -24,6 +24,7 @@ from app.models.seat import Seat
 from app.schemas.showtime import SeatRead
 from app.services.tmdb import get_trailer_key
 from app.services.discovery import VIETNAM_TIMEZONE, utc_now, vietnamese_date_range
+from app.services.collector_monitoring import get_collector_freshness
 
 router = APIRouter(tags=["pages"])
 
@@ -85,6 +86,7 @@ async def home_page(
         for movie_id, provider_source in (await db.execute(sources_query)).all():
             if provider_source and provider_source not in movie_sources[movie_id]:
                 movie_sources[movie_id].append(provider_source)
+    collector_freshness = await get_collector_freshness(db)
     return templates.TemplateResponse(
         request=request,
         name="index.html",
@@ -97,6 +99,7 @@ async def home_page(
             "selected_date": selected_date,
             "page": page,
             "has_next": has_next,
+            "collector_freshness": collector_freshness,
         },
     )
 

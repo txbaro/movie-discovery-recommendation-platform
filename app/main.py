@@ -9,6 +9,7 @@ from app.routes import (
     auth,
     booking,
     cinemas,
+    collectors,
     events,
     movies,
     pages,
@@ -42,6 +43,7 @@ app.include_router(pages.router)
 app.include_router(auth.router)
 app.include_router(booking.router)
 app.include_router(cinemas.router)
+app.include_router(collectors.router)
 app.include_router(movies.router)
 app.include_router(events.router)
 app.include_router(recommendations.router)

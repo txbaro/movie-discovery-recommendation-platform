@@ -25,11 +25,10 @@ router = APIRouter(prefix="/movies", tags=["movies"])
 
 @router.post("", response_model=MovieRead, status_code=status.HTTP_201_CREATED)
 async def create_movie(payload: MovieCreate, db: AsyncSession = Depends(get_db)):
-    """Tạo phim mới. Dùng cho trang quản trị (admin thêm phim)."""
     movie = Movie(**payload.model_dump())
     db.add(movie)
     await db.commit()
-    await db.refresh(movie)  # lấy lại id vừa được DB sinh ra
+    await db.refresh(movie)
     return movie
 
 
@@ -43,14 +42,9 @@ async def list_movies(
     available_only: bool = False,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Danh sách phim, có phân trang (skip/limit) và lọc theo thể loại (tuỳ chọn).
-    vd: GET /movies?genre=Action&limit=10
-    """
+
     query = select(Movie)
     if genre:
-        # ILIKE = so sánh không phân biệt hoa/thường, %...% để match "chứa"
-        # thể loại đó trong chuỗi genres (vd "Action,Sci-Fi" match genre="action")
         query = query.where(Movie.genres.ilike(f"%{genre}%"))
     if title:
         query = query.where(Movie.title.ilike(f"%{title}%"))

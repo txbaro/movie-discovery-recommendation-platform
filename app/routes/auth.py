@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.redis_client import redis_client
@@ -56,7 +57,7 @@ async def login(payload: UserLogin, response: Response, db: AsyncSession = Depen
     token = create_access_token(data={"sub": str(user.id)})
     response.set_cookie(
         key=COOKIE_NAME, value=token, httponly=True, samesite="lax",
-        secure=False, max_age=60 * 60,
+        secure=settings.COOKIE_SECURE, max_age=60 * 60,
     )
     return user
 
@@ -97,7 +98,9 @@ async def forgot_password(
         await redis_client.set(
             _reset_token_key(token), str(user.id), ex=RESET_TOKEN_TTL_SECONDS
         )
-        reset_link = f"http://localhost:8000/reset-password?token={token}"
+        reset_link = (
+            f"{settings.APP_BASE_URL.rstrip('/')}/reset-password?token={token}"
+        )
 
         try:
             await send_password_reset_email(to=payload.email, reset_link=reset_link)

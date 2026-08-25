@@ -16,6 +16,7 @@ from app.models.cinema import Cinema
 from app.models.cinema_room import CinemaRoom
 from app.models.showtime_seat import ShowtimeSeat
 from app.models.booking_seat import BookingSeat
+from app.models.collector_run import CollectorRun, CollectorRunStatus
 
 __all__ = [
     "User",
@@ -32,4 +33,6 @@ __all__ = [
     "CinemaRoom",
     "ShowtimeSeat",
     "BookingSeat",
+    "CollectorRun",
+    "CollectorRunStatus",
 ]

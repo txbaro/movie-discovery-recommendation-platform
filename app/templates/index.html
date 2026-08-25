@@ -14,6 +14,42 @@
     <p>Tìm phim và so sánh suất chiếu từ nhiều hệ thống rạp.</p>
 </section>
 
+<section class="freshness-panel" aria-labelledby="freshness-heading">
+    <div class="freshness-heading">
+        <div>
+            <p class="eyebrow">DATA FRESHNESS</p>
+            <h2 id="freshness-heading">Tình trạng dữ liệu rạp</h2>
+        </div>
+        <a href="/collectors/freshness" class="text-link">Xem API →</a>
+    </div>
+    <div class="freshness-grid">
+        {% for item in collector_freshness %}
+        <article class="freshness-item freshness-{{ item.freshness_status }}{% if item.warning %} has-warning{% endif %}">
+            <div class="freshness-source">
+                <span class="freshness-dot"></span>
+                <strong>{{ item.source }}</strong>
+            </div>
+            {% if item.freshness_status == 'fresh' %}
+                <p>Đã xác nhận {{ item.age_hours }} giờ trước</p>
+            {% elif item.freshness_status == 'stale' %}
+                <p>Có thể đã cũ · {{ item.age_hours }} giờ</p>
+            {% else %}
+                <p>Chưa có lần đồng bộ thành công</p>
+            {% endif %}
+            {% if item.last_run_status == 'suspicious' %}
+                <small>⚠ Lần chạy gần nhất trả về dữ liệu rỗng.</small>
+            {% elif item.last_run_status == 'failed' %}
+                <small>⚠ Lần đồng bộ gần nhất đã thất bại.</small>
+            {% elif item.last_run_status == 'partial_failure' %}
+                <small>Đã cập nhật nhưng một số bản ghi bị lỗi.</small>
+            {% else %}
+                <small>Trạng thái gần nhất: {{ item.last_run_status or 'chưa chạy' }}</small>
+            {% endif %}
+        </article>
+        {% endfor %}
+    </div>
+</section>
+
 <section class="semantic-recommender">
     <div class="semantic-copy">
         <p class="eyebrow">GỢI Ý BẰNG NGÔN NGỮ TỰ NHIÊN</p>

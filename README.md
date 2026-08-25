@@ -33,6 +33,7 @@ flowchart LR
     A[Cinestar] --> D[Provider collectors]
     B[Lotte Cinema] --> D
     C[Galaxy Cinema] --> D
+    S[Scheduler process] --> D
     D --> E[Shared Pydantic DTOs]
     E --> F[Idempotent sync service]
     F --> G[(PostgreSQL)]
@@ -83,6 +84,21 @@ The catalogue separates:
 Existing provider mappings take priority. New records are matched using a
 normalized title and a duration tolerance, allowing one movie card to aggregate
 showtimes from multiple cinema chains while preserving source provenance.
+
+### Collector observability and data freshness
+
+Every synchronization attempt is persisted in `collector_runs` with its source,
+status, duration, requested date range, record counts, and any operational
+error. A zero-record response is classified as `suspicious` rather than a
+successful refresh, while batches with both valid and invalid records are
+classified as `partial_failure`.
+
+The homepage and `GET /collectors/freshness` expose the last successful update
+for Cinestar, Lotte, and Galaxy. Freshness is calculated independently from the
+latest attempt, so a failed run can raise a warning without discarding the last
+known showtimes or falsely marking them as newly updated. The default freshness
+window is eight hours and can be changed with
+`COLLECTOR_FRESHNESS_HOURS`.
 
 ### Discovery and nearby cinemas
 
@@ -158,6 +174,23 @@ The quota and lock operations use Lua scripts where multiple Redis commands must
 behave atomically. If Gemini is configured and Redis is unavailable, the
 recommendation endpoint fails closed to protect API cost.
 
+### Scheduled synchronization
+
+Collectors can run in a dedicated long-lived scheduler process that shares the
+application image, PostgreSQL, and Redis without sharing the FastAPI process.
+By default, each provider runs every six hours; Cinestar starts immediately,
+Lotte is offset by ten minutes, and Galaxy by twenty minutes. Provider failures
+are logged and persisted in `collector_runs` without stopping the other loops.
+
+The interval, stagger, date range, and enabled sources are environment-driven:
+
+```dotenv
+COLLECTOR_SCHEDULER_SOURCES=cinestar,lotte,galaxy
+COLLECTOR_SCHEDULE_INTERVAL_MINUTES=360
+COLLECTOR_STAGGER_MINUTES=10
+COLLECTOR_SYNC_DAYS=7
+```
+
 ### Optional internal-booking concurrency lab
 
 Real provider showtimes use `external_redirect`; this application cannot know
@@ -197,6 +230,7 @@ User 1 ── N Booking
 
 Movie 1 ── N ProviderMovie
 Movie 1 ── N Showtime
+CollectorRun N ── 1 provider source (logical association)
 Cinema 1 ── N CinemaRoom
 Cinema 1 ── N Showtime
 CinemaRoom 1 ── N Seat
@@ -249,17 +283,7 @@ Uvicorn.
 - OpenAPI documentation: <http://localhost:8001/docs>
 - Health check: <http://localhost:8001/health>
 
-### 3. Load sample data
-
-The fixture collector exercises the same DTO and synchronization pipeline
-without depending on an external website:
-
-```bash
-docker compose run --rm app \
-  python -m app.scripts.sync_cinema_data --source fixture
-```
-
-### 4. Run live collectors
+### 3. Run live collectors
 
 ```bash
 docker compose run --rm app \
@@ -296,6 +320,28 @@ Upstream websites can change without notice. These collectors use public-facing
 data for an educational portfolio project and should be run at a respectful
 frequency and in accordance with the applicable site terms.
 
+### 4. Start the scheduler
+
+The scheduler is opt-in locally so that starting the web application does not
+unexpectedly contact upstream cinema websites:
+
+```bash
+docker compose --profile scheduler up --build
+```
+
+This starts the normal application services plus a separate
+`movie-booking-scheduler` container. To execute all configured providers once
+and exit, use:
+
+```bash
+docker compose run --rm scheduler \
+  python -m app.scripts.run_collector_scheduler --once
+```
+
+Use the long-running scheduler on a VPS or Docker host. On a managed platform,
+the same `sync_cinema_data` commands can instead be configured as independent
+native cron jobs.
+
 ## Database migrations
 
 Alembic owns the database schema; application startup does not call
@@ -317,6 +363,7 @@ GET  /movies?title=conan&source=cinestar&available_only=true&skip=0&limit=20
 GET  /showtimes?source=lotte&city=H%E1%BB%93%20Ch%C3%AD%20Minh&date=2026-08-21
 GET  /movies/{movie_id}/showtimes?city=H%E1%BB%93%20Ch%C3%AD%20Minh&date=2026-08-21
 GET  /cinemas?latitude=10.778&longitude=106.702&radius_km=10
+GET  /collectors/freshness
 POST /events
 GET  /recommendations/me
 POST /recommendations/natural-language
@@ -339,7 +386,7 @@ After the first image build:
 docker compose --profile test run --rm test
 ```
 
-The suite currently contains 37 tests covering:
+The suite currently contains 45 tests covering:
 
 - authentication and application smoke tests;
 - Cinestar, Lotte, and Galaxy collector contracts;
@@ -348,6 +395,9 @@ The suite currently contains 37 tests covering:
 - event validation and deduplication;
 - Gemini request contracts, embedding caches, TF-IDF fallback, and AI quotas;
 - distributed collector locks;
+- collector run classification and freshness reporting;
+- scheduler configuration and provider-failure isolation;
+- production database URL and secure-cookie configuration;
 - seat holds, inventory consistency, and competing booking requests.
 
 ## Project structure
@@ -358,7 +408,6 @@ The suite currently contains 37 tests covering:
 ├── app/
 │   ├── collectors/           # Provider adapters and shared ingestion DTOs
 │   ├── core/                 # Configuration, database, Redis, security
-│   ├── fixtures/             # Offline ingestion fixtures
 │   ├── models/               # SQLAlchemy models
 │   ├── routes/               # HTTP and WebSocket endpoints
 │   ├── schemas/              # API request/response schemas
@@ -367,7 +416,7 @@ The suite currently contains 37 tests covering:
 │   ├── static/               # CSS and client-side behavior
 │   ├── templates/            # Jinja2 pages
 │   └── main.py               # FastAPI application
-├── tests/                    # Integration and unit tests
+├── tests/                    # Tests and recorded provider-response fixtures
 ├── docker-compose.yml
 └── Dockerfile
 ```
@@ -385,10 +434,40 @@ The suite currently contains 37 tests covering:
 - The optional internal-booking subsystem is a concurrency demonstration and is
   disabled by default in the external-data workflow.
 
+## Deploy to Render
+
+The repository includes a `render.yaml` Blueprint for a Docker web service,
+PostgreSQL, and Key Value. All resources use the Singapore region and can use
+Render's free instance types. A paid Render Cron Job is intentionally not part
+of the Blueprint; the scheduler remains available as a local architecture demo.
+
+1. Push the latest repository state to GitHub.
+2. In Render, select **New → Blueprint** and connect this repository.
+3. Keep `render.yaml` as the Blueprint path and review the three resources.
+4. Provide `GEMINI_API_KEY`, `TMDB_API_KEY`, `GALAXY_COOKIE`, and
+   `GALAXY_USER_AGENT` when prompted. Optional keys can be left empty.
+5. Apply the Blueprint and wait for `movie-discovery-web` to become healthy.
+6. The `initialDeployHook` runs all configured collectors once after the first
+   successful web deploy, populating Render PostgreSQL without a permanent cron.
+7. Verify `/health`, `/collectors/freshness`, registration, and semantic
+   recommendation on the generated `onrender.com` URL.
+
+The web start command applies Alembic migrations before Uvicorn and binds to
+Render's runtime `PORT`. `APP_BASE_URL` follows Render's generated external URL,
+and authentication cookies use the HTTPS-only `Secure` flag.
+
+For a short portfolio demo, the free web, Postgres, and Key Value plans are
+appropriate. Free web services may sleep while idle, free PostgreSQL expires
+after 30 days, and free Key Value is non-persistent. Redis data loss is
+acceptable here because durable movies, events, embeddings, and collector
+history remain in PostgreSQL. Because there is no deployed schedule, the data
+will eventually be marked stale; run the local scheduler when demonstrating the
+scheduling implementation.
+
 ## Potential next steps
 
 - Deploy the web service, PostgreSQL, Redis, and a scheduled collector job.
-- Add collector observability, freshness metrics, and upstream contract alerts.
+- Add automated alerts for suspicious or repeatedly failed collector runs.
 - Introduce `pgvector` and approximate nearest-neighbor search as the catalogue
   grows.
 - Add recommendation evaluation metrics such as click-through rate by context.

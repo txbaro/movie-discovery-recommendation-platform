@@ -2,29 +2,27 @@ import argparse
 import asyncio
 import json
 from datetime import date, datetime
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from app.collectors.cinestar import CinestarCollector
-from app.collectors.fixture import FixtureCollector
 from app.collectors.galaxy import GalaxyCollector
 from app.collectors.lotte import LotteCollector
 from app.core.database import AsyncSessionLocal, engine
-from app.services.cinema_sync import sync_collected_showtimes, sync_collector
+from app.models.collector_run import CollectorRunStatus
+from app.services.cinema_sync import sync_collected_showtimes
+from app.services.collector_monitoring import (
+    classify_sync_result,
+    finish_collector_run,
+    record_skipped_collector_run,
+    start_collector_run,
+)
 from app.services.redis_features import distributed_lock
 
 
-FIXTURE_SOURCES = {
-    "fixture": ("fixture", Path("app/fixtures/sample_showtimes.json")),
-    "mock-cgv": ("cgv", Path("app/fixtures/providers/cgv_showtimes.json")),
-    "mock-galaxy": (
-        "galaxy",
-        Path("app/fixtures/providers/galaxy_showtimes.json"),
-    ),
-    "mock-cinestar": (
-        "cinestar",
-        Path("app/fixtures/providers/cinestar_showtimes.json"),
-    ),
+COLLECTORS = {
+    "cinestar": CinestarCollector,
+    "lotte": LotteCollector,
+    "galaxy": GalaxyCollector,
 }
 
 
@@ -32,8 +30,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Synchronize cinema schedule data")
     parser.add_argument(
         "--source",
-        choices=[*FIXTURE_SOURCES, "demo", "cinestar", "lotte", "galaxy"],
-        default="fixture",
+        choices=["cinestar", "lotte", "galaxy"],
+        required=True,
     )
     parser.add_argument(
         "--date",
@@ -42,77 +40,79 @@ def parse_args() -> argparse.Namespace:
         help="Ngày YYYY-MM-DD; mặc định là hôm nay theo giờ Việt Nam",
     )
     parser.add_argument(
-        "--fixture-path",
-        type=Path,
-        default=None,
-        help="Override fixture path; only valid for a single source",
-    )
-    parser.add_argument(
         "--days",
         type=int,
         default=None,
-        help="Số ngày liên tiếp; collector live mặc định 7, fixture mặc định 1",
+        help="Số ngày liên tiếp; mặc định 7, hỗ trợ từ 1 đến 31",
     )
     return parser.parse_args()
 
 
+async def sync_source(source: str, target_date: date, days: int) -> dict[str, object]:
+    """Run one observable, lock-protected provider synchronization."""
+    if source not in COLLECTORS:
+        raise ValueError(f"Unsupported collector source: {source}")
+    if not 1 <= days <= 31:
+        raise ValueError("days must be between 1 and 31")
+
+    async with AsyncSessionLocal() as db:
+        async with distributed_lock(f"collector:{source}") as acquired:
+            if not acquired:
+                run = await record_skipped_collector_run(
+                    db,
+                    source,
+                    target_date,
+                    days,
+                    "collector_already_running",
+                )
+                return {
+                    "status": "skipped",
+                    "reason": "collector_already_running",
+                    "collector_run_id": run.id,
+                }
+
+            run = await start_collector_run(db, source, target_date, days)
+            run_id = run.id
+            try:
+                collector = COLLECTORS[source]()
+                items = await collector.collect_range(target_date, days)
+                result = await sync_collected_showtimes(
+                    db, collector.source, items
+                )
+            except Exception as exc:
+                await db.rollback()
+                run = await db.get(type(run), run_id)
+                if run is None:
+                    raise RuntimeError(
+                        f"Collector run {run_id} disappeared"
+                    ) from exc
+                await finish_collector_run(
+                    db,
+                    run,
+                    status=CollectorRunStatus.FAILED,
+                    error_message=str(exc),
+                )
+                raise
+
+            status = classify_sync_result(result)
+            run = await finish_collector_run(
+                db, run, status=status, result=result
+            )
+            return {
+                **result.model_dump(),
+                "status": status.value,
+                "collector_run_id": run.id,
+            }
+
+
 async def main() -> None:
     args = parse_args()
-    if args.source == "demo":
-        if args.fixture_path is not None:
-            raise SystemExit("--fixture-path không dùng được với --source demo")
-        sources = ["mock-cgv", "mock-galaxy", "mock-cinestar"]
-    else:
-        sources = [args.source]
-
-    results = {}
-    async with AsyncSessionLocal() as db:
-        for source in sources:
-            lock_source = (
-                source
-                if source in {"cinestar", "lotte", "galaxy"}
-                else FIXTURE_SOURCES[source][0]
-            )
-            async with distributed_lock(f"collector:{lock_source}") as acquired:
-                if not acquired:
-                    results[lock_source] = {
-                        "status": "skipped",
-                        "reason": "collector_already_running",
-                    }
-                    continue
-                if source in {"cinestar", "lotte", "galaxy"}:
-                    if args.fixture_path is not None:
-                        raise SystemExit(
-                            f"--fixture-path không dùng được với --source {source}"
-                        )
-                    collectors = {
-                        "cinestar": CinestarCollector,
-                        "lotte": LotteCollector,
-                        "galaxy": GalaxyCollector,
-                    }
-                    collector = collectors[source]()
-                    collector_source = collector.source
-                    days = args.days if args.days is not None else 7
-                    if not 1 <= days <= 31:
-                        raise SystemExit("--days phải nằm trong khoảng 1..31")
-                    items = await collector.collect_range(args.date, days)
-                    result = await sync_collected_showtimes(
-                        db, collector_source, items
-                    )
-                else:
-                    if args.days not in (None, 1):
-                        raise SystemExit("--days > 1 chỉ hỗ trợ collector live")
-                    collector_source, default_path = FIXTURE_SOURCES[source]
-                    path = args.fixture_path or default_path
-                    collector = FixtureCollector(path, source=collector_source)
-                    result = await sync_collector(db, collector, args.date)
-                results[collector_source] = result.model_dump()
-
-    if len(results) == 1:
-        print(json.dumps(next(iter(results.values())), ensure_ascii=False, indent=2))
-    else:
-        print(json.dumps(results, ensure_ascii=False, indent=2))
-    await engine.dispose()
+    days = args.days if args.days is not None else 7
+    try:
+        result = await sync_source(args.source, args.date, days)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    finally:
+        await engine.dispose()
 
 
 if __name__ == "__main__":

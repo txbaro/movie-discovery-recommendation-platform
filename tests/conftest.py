@@ -24,7 +24,8 @@ async def clean_state() -> AsyncIterator[None]:
     async with AsyncSessionLocal() as session:
         await session.execute(
             text(
-                "TRUNCATE user_events, movie_embeddings, booking_seats, bookings, "
+                "TRUNCATE collector_runs, user_events, movie_embeddings, "
+                "booking_seats, bookings, "
                 "showtime_seats, seats, "
                 "showtimes, cinema_rooms, cinemas, movies, users "
                 "RESTART IDENTITY CASCADE"
