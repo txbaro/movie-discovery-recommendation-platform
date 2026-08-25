@@ -43,6 +43,7 @@ ENV PATH=/home/appuser/.local/bin:$PATH
 COPY --chown=appuser:appuser ./app ./app
 COPY --chown=appuser:appuser ./alembic ./alembic
 COPY --chown=appuser:appuser alembic.ini .
+RUN chmod +x /app/app/scripts/start_render.sh
 
 # Chạy bằng user không phải root — thực hành bảo mật cơ bản,
 # tránh chạy app với quyền root trong container

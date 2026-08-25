@@ -5,9 +5,7 @@ services:
     plan: free
     region: singapore
     dockerfilePath: ./Dockerfile
-    dockerCommand: >-
-      /bin/sh -c "alembic upgrade head &&
-      uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    dockerCommand: /app/app/scripts/start_render.sh
     initialDeployHook: python -m app.scripts.run_collector_scheduler --once
     healthCheckPath: /health
     envVars:
