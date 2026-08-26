@@ -268,6 +268,16 @@ GEMINI_EMBEDDING_MODEL=gemini-embedding-2
 GEMINI_API_BASE_URL=https://generativelanguage.googleapis.com/v1beta
 ```
 
+TMDB is the only source used for canonical movie ratings. Configure its API
+key to enrich cinema movies after every collector synchronization:
+
+```dotenv
+TMDB_API_KEY=your-tmdb-api-key
+```
+
+The matcher uses normalized titles and runtime tolerance. A movie without a
+confident TMDB match or without TMDB votes is displayed as `Chưa đánh giá`.
+
 Never commit `.env`; it is intentionally excluded by `.gitignore`.
 
 ### 2. Start the application
@@ -319,6 +329,13 @@ docker compose run --rm \
 Upstream websites can change without notice. These collectors use public-facing
 data for an educational portfolio project and should be run at a respectful
 frequency and in accordance with the applicable site terms.
+
+To backfill or refresh TMDB ratings for movies already stored in the database:
+
+```bash
+docker compose run --rm app \
+  python -m app.scripts.enrich_tmdb_ratings
+```
 
 ### 4. Start the scheduler
 
@@ -433,36 +450,6 @@ The suite currently contains 45 tests covering:
   vector database at larger scale.
 - The optional internal-booking subsystem is a concurrency demonstration and is
   disabled by default in the external-data workflow.
-
-## Deploy to Render
-
-The repository includes a `render.yaml` Blueprint for a Docker web service,
-PostgreSQL, and Key Value. All resources use the Singapore region and can use
-Render's free instance types. A paid Render Cron Job is intentionally not part
-of the Blueprint; the scheduler remains available as a local architecture demo.
-
-1. Push the latest repository state to GitHub.
-2. In Render, select **New → Blueprint** and connect this repository.
-3. Keep `render.yaml` as the Blueprint path and review the three resources.
-4. Provide `GEMINI_API_KEY`, `TMDB_API_KEY`, `GALAXY_COOKIE`, and
-   `GALAXY_USER_AGENT` when prompted. Optional keys can be left empty.
-5. Apply the Blueprint and wait for `movie-discovery-web` to become healthy.
-6. The `initialDeployHook` runs all configured collectors once after the first
-   successful web deploy, populating Render PostgreSQL without a permanent cron.
-7. Verify `/health`, `/collectors/freshness`, registration, and semantic
-   recommendation on the generated `onrender.com` URL.
-
-The web start command applies Alembic migrations before Uvicorn and binds to
-Render's runtime `PORT`. `APP_BASE_URL` follows Render's generated external URL,
-and authentication cookies use the HTTPS-only `Secure` flag.
-
-For a short portfolio demo, the free web, Postgres, and Key Value plans are
-appropriate. Free web services may sleep while idle, free PostgreSQL expires
-after 30 days, and free Key Value is non-persistent. Redis data loss is
-acceptable here because durable movies, events, embeddings, and collector
-history remain in PostgreSQL. Because there is no deployed schedule, the data
-will eventually be marked stale; run the local scheduler when demonstrating the
-scheduling implementation.
 
 ## Potential next steps
 

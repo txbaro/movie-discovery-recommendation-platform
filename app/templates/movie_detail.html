@@ -14,7 +14,13 @@
         <div class="genres">{{ movie.genres }}</div>
         <p>{{ movie.description }}</p>
         <p style="margin-top: 12px; color: #6b6b6b;">
-            {{ movie.duration_minutes }} phút · ⭐ {{ movie.rating }}
+            {{ movie.duration_minutes }} phút ·
+            {% if movie.rating is not none and movie.rating_source == 'tmdb' %}
+            ⭐ {{ '%.1f'|format(movie.rating) }}
+            {% if movie.rating_vote_count is not none %}({{ movie.rating_vote_count }} lượt){% endif %}
+            {% else %}
+            Chưa đánh giá
+            {% endif %}
         </p>
     </div>
 </div>

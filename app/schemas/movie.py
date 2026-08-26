@@ -9,7 +9,7 @@ class MovieBase(BaseModel):
     genres: str  # vd: "Action,Sci-Fi,Thriller"
     description: str
     duration_minutes: int
-    rating: float = 0.0
+    rating: float | None = None
     poster_url: str | None = None
 
 
@@ -36,6 +36,8 @@ class MovieRead(MovieBase):
     id: int
     tmdb_id: int | None = None
     metadata_source: str | None = None
+    rating_vote_count: int | None = None
+    rating_source: str | None = None
 
     # from_attributes=True: cho phép Pydantic đọc trực tiếp từ SQLAlchemy
     # model (object có attribute), không chỉ từ dict — cần thiết vì route

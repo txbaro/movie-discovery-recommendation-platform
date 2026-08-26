@@ -134,7 +134,10 @@ async def test_cold_start_returns_trending_movies(client, catalogue):
 
 
 @pytest.mark.asyncio
-async def test_natural_language_recommendation_and_click_tracking(client, catalogue):
+async def test_natural_language_recommendation_and_click_tracking(
+    monkeypatch, client, catalogue
+):
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "")
     action_id, _romance_id, _external_showtime_id = (
         await _add_recommendation_candidates(catalogue)
     )

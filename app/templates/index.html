@@ -139,7 +139,14 @@
             <span class="source-badge source-{{ provider_source }}">{{ provider_source }}</span>
             {% endfor %}
             <div class="movie-card-title">{{ movie.title }}</div>
-            <div class="movie-card-meta">{{ movie.genres }} · ⭐ {{ movie.rating }}</div>
+            <div class="movie-card-meta">
+                {{ movie.genres }} ·
+                {% if movie.rating is not none and movie.rating_source == 'tmdb' %}
+                ⭐ {{ '%.1f'|format(movie.rating) }}
+                {% else %}
+                Chưa đánh giá
+                {% endif %}
+            </div>
             <div class="movie-card-action">Xem lịch chiếu →</div>
         </div>
     </a>
@@ -170,6 +177,12 @@ function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>'"]/g, (char) => ({
         "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;",
     })[char]);
+}
+
+function ratingLabel(movie) {
+    return movie.rating !== null && movie.rating_source === "tmdb"
+        ? `⭐ ${Number(movie.rating).toFixed(1)}`
+        : "Chưa đánh giá";
 }
 
 document.getElementById("semantic-form").addEventListener("submit", async (event) => {
@@ -238,7 +251,7 @@ document.getElementById("semantic-form").addEventListener("submit", async (event
                 <div class="movie-card-body">
                     <div class="semantic-score">${Math.round(result.final_score * 100)}% phù hợp</div>
                     <div class="movie-card-title">${escapeHtml(result.movie.title)}</div>
-                    <div class="movie-card-meta">${escapeHtml(result.movie.genres)} · ⭐ ${result.movie.rating}</div>
+                    <div class="movie-card-meta">${escapeHtml(result.movie.genres)} · ${ratingLabel(result.movie)}</div>
                     <div class="nearest-showtime">
                         <strong>📍 ${escapeHtml(nearest.cinema_name)}${distance}</strong>
                         <span>${dateFormatter.format(new Date(nearest.start_time))}</span>
@@ -311,7 +324,7 @@ document.getElementById("use-location").addEventListener("click", () => {
                  alt="${r.movie.title}">
             <div class="movie-card-body">
                 <div class="movie-card-title">${r.movie.title}</div>
-                <div class="movie-card-meta">${r.movie.genres} · ⭐ ${r.movie.rating}</div>
+                <div class="movie-card-meta">${escapeHtml(r.movie.genres)} · ${ratingLabel(r.movie)}</div>
             </div>
         </a>
     `).join("");

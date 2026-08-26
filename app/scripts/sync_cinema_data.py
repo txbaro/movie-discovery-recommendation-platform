@@ -4,11 +4,14 @@ import json
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
+from sqlalchemy import select
+
 from app.collectors.cinestar import CinestarCollector
 from app.collectors.galaxy import GalaxyCollector
 from app.collectors.lotte import LotteCollector
 from app.core.database import AsyncSessionLocal, engine
 from app.models.collector_run import CollectorRunStatus
+from app.models.provider_movie import ProviderMovie
 from app.services.cinema_sync import sync_collected_showtimes
 from app.services.collector_monitoring import (
     classify_sync_result,
@@ -17,6 +20,7 @@ from app.services.collector_monitoring import (
     start_collector_run,
 )
 from app.services.redis_features import distributed_lock
+from app.services.tmdb import enrich_movie_ratings
 
 
 COLLECTORS = {
@@ -79,6 +83,22 @@ async def sync_source(source: str, target_date: date, days: int) -> dict[str, ob
                 result = await sync_collected_showtimes(
                     db, collector.source, items
                 )
+                external_movie_ids = {
+                    item.movie.external_id for item in items
+                }
+                canonical_movie_ids = set(
+                    (
+                        await db.scalars(
+                            select(ProviderMovie.movie_id).where(
+                                ProviderMovie.source == collector.source,
+                                ProviderMovie.external_id.in_(external_movie_ids),
+                            )
+                        )
+                    ).all()
+                )
+                rating_enrichment = await enrich_movie_ratings(
+                    db, canonical_movie_ids
+                )
             except Exception as exc:
                 await db.rollback()
                 run = await db.get(type(run), run_id)
@@ -102,6 +122,7 @@ async def sync_source(source: str, target_date: date, days: int) -> dict[str, ob
                 **result.model_dump(),
                 "status": status.value,
                 "collector_run_id": run.id,
+                "tmdb_rating_enrichment": rating_enrichment,
             }
 
 

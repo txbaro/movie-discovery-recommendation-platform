@@ -6,9 +6,14 @@ Tách riêng thành module này (thay vì gọi thẳng trong route) để:
 - Dễ test độc lập, dễ thay đổi nguồn dữ liệu sau này (vd đổi sang nguồn khác)
   mà không phải sửa route
 """
+from difflib import SequenceMatcher
+
 import httpx
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.models.movie import Movie, normalize_movie_title
 
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
 TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
@@ -16,6 +21,7 @@ TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
 
 class TMDBError(Exception):
     """Raise khi gọi TMDB thất bại — route sẽ bắt exception này để trả lỗi rõ ràng."""
+
     pass
 
 
@@ -86,17 +92,189 @@ async def fetch_movies(category: str = "popular", page: int = 1) -> list[dict]:
             poster_path = item.get("poster_path")
             poster_url = f"{TMDB_IMAGE_BASE_URL}{poster_path}" if poster_path else None
 
-            movies.append({
-                "tmdb_id": item["id"],
-                "title": item.get("title", "Untitled"),
-                "genres": ",".join(genre_names) if genre_names else "Unknown",
-                "description": item.get("overview") or "Chưa có mô tả.",
-                "duration_minutes": runtime,
-                "rating": round(item.get("vote_average", 0.0), 1),
-                "poster_url": poster_url,
-            })
+            vote_count = int(item.get("vote_count") or 0)
+            movies.append(
+                {
+                    "tmdb_id": item["id"],
+                    "title": item.get("title", "Untitled"),
+                    "genres": (
+                        ",".join(genre_names) if genre_names else "Unknown"
+                    ),
+                    "description": item.get("overview") or "Chưa có mô tả.",
+                    "duration_minutes": runtime,
+                    "rating": (
+                        round(float(item.get("vote_average") or 0.0), 1)
+                        if vote_count > 0
+                        else None
+                    ),
+                    "rating_vote_count": vote_count,
+                    "rating_source": "tmdb",
+                    "metadata_source": "tmdb",
+                    "poster_url": poster_url,
+                }
+            )
 
         return movies
+
+
+def _title_similarity(movie_title: str, candidate: dict) -> float:
+    target = normalize_movie_title(movie_title)
+    titles = {
+        normalize_movie_title(candidate.get("title") or ""),
+        normalize_movie_title(candidate.get("original_title") or ""),
+    }
+    titles.discard("")
+    if target in titles:
+        return 1.0
+    return max(
+        (SequenceMatcher(None, target, title).ratio() for title in titles),
+        default=0.0,
+    )
+
+
+async def _get_movie_details(
+    client: httpx.AsyncClient,
+    tmdb_movie_id: int,
+) -> dict | None:
+    response = await client.get(
+        f"{TMDB_BASE_URL}/movie/{tmdb_movie_id}",
+        params={"api_key": settings.TMDB_API_KEY, "language": "vi-VN"},
+    )
+    if response.status_code != 200:
+        return None
+    return response.json()
+
+
+async def _find_tmdb_match(
+    client: httpx.AsyncClient,
+    movie: Movie,
+) -> dict | None:
+    """Conservatively match a cinema title to TMDB using title and runtime."""
+    if movie.tmdb_id is not None:
+        return await _get_movie_details(client, movie.tmdb_id)
+
+    response = await client.get(
+        f"{TMDB_BASE_URL}/search/movie",
+        params={
+            "api_key": settings.TMDB_API_KEY,
+            "query": movie.title,
+            "language": "vi-VN",
+            "include_adult": "false",
+        },
+    )
+    if response.status_code != 200:
+        raise TMDBError(
+            f"TMDB search trả lỗi {response.status_code} cho {movie.title}"
+        )
+
+    candidates = sorted(
+        response.json().get("results", [])[:10],
+        key=lambda item: _title_similarity(movie.title, item),
+        reverse=True,
+    )[:3]
+    best: tuple[float, dict] | None = None
+    for candidate in candidates:
+        title_score = _title_similarity(movie.title, candidate)
+        if title_score < 0.9:
+            continue
+        details = await _get_movie_details(client, int(candidate["id"]))
+        if details is None:
+            continue
+        runtime = int(details.get("runtime") or 0)
+        runtime_delta = abs(runtime - movie.duration_minutes) if runtime else 0
+        if runtime and runtime_delta > 15:
+            continue
+        # Exact titles win; for close titles, runtime breaks the tie and avoids
+        # attaching a remake or another movie with a similar name.
+        match_score = title_score - min(runtime_delta, 15) / 150
+        if best is None or match_score > best[0]:
+            best = (match_score, details)
+    return best[1] if best is not None else None
+
+
+async def enrich_movie_ratings(
+    db: AsyncSession,
+    movie_ids: set[int] | None = None,
+) -> dict[str, int | str]:
+    """Attach TMDB-only ratings to canonical movies and persist the result."""
+    if not settings.TMDB_API_KEY:
+        return {
+            "processed": 0,
+            "matched": 0,
+            "rated": 0,
+            "unrated": 0,
+            "failed": 0,
+            "status": "skipped_missing_api_key",
+        }
+
+    query = select(Movie).order_by(Movie.id)
+    if movie_ids is not None:
+        if not movie_ids:
+            return {
+                "processed": 0,
+                "matched": 0,
+                "rated": 0,
+                "unrated": 0,
+                "failed": 0,
+                "status": "success",
+            }
+        query = query.where(Movie.id.in_(movie_ids))
+    movies = list((await db.scalars(query)).all())
+    stats: dict[str, int | str] = {
+        "processed": len(movies),
+        "matched": 0,
+        "rated": 0,
+        "unrated": 0,
+        "failed": 0,
+        "status": "success",
+    }
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        for movie in movies:
+            try:
+                match = await _find_tmdb_match(client, movie)
+                if match is None:
+                    movie.rating = None
+                    movie.rating_vote_count = None
+                    movie.rating_source = None
+                    stats["unrated"] += 1
+                    continue
+
+                tmdb_id = int(match["id"])
+                owner = await db.scalar(
+                    select(Movie.id).where(
+                        Movie.tmdb_id == tmdb_id,
+                        Movie.id != movie.id,
+                    )
+                )
+                if owner is not None:
+                    # A TMDB id is unique. Canonical merging should be handled
+                    # separately instead of silently stealing the identifier.
+                    stats["failed"] += 1
+                    continue
+
+                vote_count = int(match.get("vote_count") or 0)
+                movie.tmdb_id = tmdb_id
+                movie.rating_vote_count = vote_count
+                movie.rating_source = "tmdb"
+                movie.rating = (
+                    round(float(match.get("vote_average") or 0.0), 1)
+                    if vote_count > 0
+                    else None
+                )
+                stats["matched"] += 1
+                if movie.rating is None:
+                    stats["unrated"] += 1
+                else:
+                    stats["rated"] += 1
+            except (httpx.HTTPError, TMDBError, TypeError, ValueError):
+                stats["failed"] += 1
+
+    await db.commit()
+    if stats["failed"]:
+        stats["status"] = "partial_failure"
+    return stats
+
 
 async def get_trailer_key(tmdb_movie_id: int) -> str | None:
     """

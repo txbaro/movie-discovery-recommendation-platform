@@ -93,8 +93,6 @@ def _merge_canonical_movie(
         or incoming_priority > current_priority
     ):
         changed |= _apply_values(movie, {"description": item.movie.description})
-    if item.movie.rating > movie.rating:
-        changed |= _apply_values(movie, {"rating": item.movie.rating})
     return changed
 
 
@@ -133,7 +131,7 @@ async def _resolve_provider_movie(
             genres=item.movie.genres,
             description=item.movie.description,
             duration_minutes=duration,
-            rating=item.movie.rating,
+            rating=None,
             poster_url=item.movie.poster_url,
             metadata_source=source,
         )

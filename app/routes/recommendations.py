@@ -244,7 +244,11 @@ async def natural_language_recommendations(
         semantic_score = semantic_scores.get(movie.id, 0.0)
         behavior_score = behavior_scores.get(movie.id, 0.0)
         popularity_score = showtime_counts[movie.id] / max_showtimes
-        rating_score = max(0.0, min(1.0, movie.rating / 10))
+        rating_score = (
+            max(0.0, min(1.0, (movie.rating or 0.0) / 10))
+            if movie.rating_source == "tmdb"
+            else 0.0
+        )
         proximity_score = None
         if nearest_distance is not None:
             proximity_score = max(0.0, 1 - nearest_distance / payload.radius_km)

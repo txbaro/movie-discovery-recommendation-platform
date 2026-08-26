@@ -43,7 +43,11 @@ class Movie(Base):
     genres: Mapped[str] = mapped_column(String(255))
     description: Mapped[str] = mapped_column(Text)
     duration_minutes: Mapped[int] = mapped_column(Integer)
-    rating: Mapped[float] = mapped_column(Float, default=0.0)
+    # Canonical rating only comes from TMDB.  NULL means TMDB has not matched
+    # the movie, or the matched movie does not have any votes yet.
+    rating: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rating_vote_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rating_source: Mapped[str | None] = mapped_column(String(50), nullable=True)
     poster_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     tmdb_id: Mapped[int | None] = mapped_column(Integer, unique=True, nullable=True)
     metadata_source: Mapped[str | None] = mapped_column(String(50), nullable=True)

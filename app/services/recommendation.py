@@ -16,7 +16,7 @@ CƠ CHẾ TF-IDF + Cosine Similarity (giải thích ngắn gọn):
 """
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.movie import Movie
@@ -165,7 +165,14 @@ async def get_trending_movies(
         .join(Showtime, Showtime.movie_id == Movie.id)
         .where(Showtime.start_time >= utc_now())
         .group_by(Movie.id)
-        .order_by(func.count(Showtime.id).desc(), Movie.rating.desc(), Movie.id)
+        .order_by(
+            func.count(Showtime.id).desc(),
+            case(
+                (Movie.rating_source == "tmdb", Movie.rating),
+                else_=None,
+            ).desc().nullslast(),
+            Movie.id,
+        )
     )
     if excluded_movie_ids:
         query = query.where(Movie.id.not_in(excluded_movie_ids))
