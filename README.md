@@ -143,6 +143,13 @@ eligible showtimes. Gemini then embeds the prompt and canonical movie documents;
 the service compares them with cosine similarity and combines semantic relevance
 with behavioral and catalogue signals.
 
+Before embedding, a deterministic constraint parser extracts preferred,
+excluded, and soft-avoid genres in Vietnamese or English. Hard constraints such
+as `không kinh dị` or `without horror` remove matching movies before ranking;
+soft preferences such as `không quá kinh dị` reduce their semantic score. This
+prevents embedding similarity from treating a negated genre keyword as a
+positive preference.
+
 Without location:
 
 ```text
@@ -403,7 +410,7 @@ After the first image build:
 docker compose --profile test run --rm test
 ```
 
-The suite currently contains 45 tests covering:
+The suite currently contains 53 tests covering:
 
 - authentication and application smoke tests;
 - Cinestar, Lotte, and Galaxy collector contracts;
@@ -411,6 +418,7 @@ The suite currently contains 45 tests covering:
 - discovery filters and nearby-cinema calculations;
 - event validation and deduplication;
 - Gemini request contracts, embedding caches, TF-IDF fallback, and AI quotas;
+- bilingual prompt constraints and hard genre exclusion;
 - distributed collector locks;
 - collector run classification and freshness reporting;
 - scheduler configuration and provider-failure isolation;

@@ -63,6 +63,9 @@ class SemanticRecommendedMovie(BaseModel):
 class NaturalLanguageRecommendationResponse(BaseModel):
     context_id: str
     engine: str
+    included_genres: list[str] = Field(default_factory=list)
+    excluded_genres: list[str] = Field(default_factory=list)
+    soft_avoid_genres: list[str] = Field(default_factory=list)
     quota_remaining: int | None
     quota_reset_seconds: int | None
     results: list[SemanticRecommendedMovie]

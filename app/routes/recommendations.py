@@ -35,6 +35,10 @@ from app.services.recommendation import (
 )
 from app.services.redis_features import QuotaResult, consume_ai_quota
 from app.services.semantic_recommendation import get_semantic_scores
+from app.services.prompt_constraints import (
+    movie_matches_any_genre,
+    parse_prompt_constraints,
+)
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 
@@ -147,6 +151,7 @@ async def natural_language_recommendations(
 ):
     """Hybrid retrieval: semantic prompt + behavior + popularity + rating."""
     prompt = payload.prompt.strip()
+    constraints = parse_prompt_constraints(prompt)
     now = utc_now()
     today = now.astimezone(VIETNAM_TIMEZONE).date()
     if payload.date is not None and payload.date < today:
@@ -194,6 +199,8 @@ async def natural_language_recommendations(
     showtime_rows = (await db.execute(query.limit(5000))).all()
     candidates: dict[int, dict] = {}
     for showtime, movie, cinema in showtime_rows:
+        if movie_matches_any_genre(movie.genres, constraints.excluded_genres):
+            continue
         cinema_distance = None
         if payload.latitude is not None and payload.longitude is not None:
             if cinema.latitude is None or cinema.longitude is None:
@@ -242,6 +249,10 @@ async def natural_language_recommendations(
                 key=lambda item: item[0].start_time,
             )
         semantic_score = semantic_scores.get(movie.id, 0.0)
+        if movie_matches_any_genre(movie.genres, constraints.included_genres):
+            semantic_score = min(1.0, semantic_score + 0.10)
+        if movie_matches_any_genre(movie.genres, constraints.soft_avoid_genres):
+            semantic_score = max(0.0, semantic_score - 0.20)
         behavior_score = behavior_scores.get(movie.id, 0.0)
         popularity_score = showtime_counts[movie.id] / max_showtimes
         rating_score = (
@@ -333,6 +344,11 @@ async def natural_language_recommendations(
                 "location_used": payload.latitude is not None,
                 "radius_km": payload.radius_km if payload.latitude is not None else None,
                 "recommended_movie_ids": [item.movie.id for item in results],
+                "prompt_constraints": {
+                    "included_genres": list(constraints.included_genres),
+                    "excluded_genres": list(constraints.excluded_genres),
+                    "soft_avoid_genres": list(constraints.soft_avoid_genres),
+                },
                 "scores": {
                     str(item.movie.id): item.final_score for item in results
                 },
@@ -343,6 +359,9 @@ async def natural_language_recommendations(
     return NaturalLanguageRecommendationResponse(
         context_id=context_id,
         engine=engine,
+        included_genres=list(constraints.included_genres),
+        excluded_genres=list(constraints.excluded_genres),
+        soft_avoid_genres=list(constraints.soft_avoid_genres),
         quota_remaining=quota.remaining if quota is not None else None,
         quota_reset_seconds=quota.reset_seconds if quota is not None else None,
         results=results,

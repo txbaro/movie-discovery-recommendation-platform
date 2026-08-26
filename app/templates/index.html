@@ -216,8 +216,21 @@ document.getElementById("semantic-form").addEventListener("submit", async (event
         }
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.detail || "Không thể tạo gợi ý");
+        const constraintLabels = [];
+        if (payload.included_genres.length) {
+            constraintLabels.push(`ưu tiên: ${payload.included_genres.join(", ")}`);
+        }
+        if (payload.excluded_genres.length) {
+            constraintLabels.push(`đã loại trừ: ${payload.excluded_genres.join(", ")}`);
+        }
+        if (payload.soft_avoid_genres.length) {
+            constraintLabels.push(`hạn chế: ${payload.soft_avoid_genres.join(", ")}`);
+        }
+        const constraintText = constraintLabels.length
+            ? ` Hệ thống hiểu ${constraintLabels.join("; ")}.`
+            : "";
         if (payload.results.length === 0) {
-            status.textContent = "Không có phim phù hợp còn suất trong khu vực/ngày đã chọn.";
+            status.textContent = `Không có phim phù hợp còn suất trong khu vực/ngày đã chọn.${constraintText}`;
             return;
         }
         const engineLabel = payload.engine === "gemini_embedding"
@@ -226,7 +239,7 @@ document.getElementById("semantic-form").addEventListener("submit", async (event
         const quotaLabel = payload.quota_remaining === null
             ? ""
             : ` Còn ${payload.quota_remaining} lượt gợi ý hôm nay.`;
-        status.textContent = `Tìm thấy ${payload.results.length} phim bằng ${engineLabel}.${quotaLabel}`;
+        status.textContent = `Tìm thấy ${payload.results.length} phim bằng ${engineLabel}.${constraintText}${quotaLabel}`;
         const dateFormatter = new Intl.DateTimeFormat("vi-VN", {
             weekday: "short", day: "2-digit", month: "2-digit",
             hour: "2-digit", minute: "2-digit", timeZone: "Asia/Ho_Chi_Minh",
@@ -249,7 +262,7 @@ document.getElementById("semantic-form").addEventListener("submit", async (event
                     : '<div class="poster-placeholder"><span>🎬</span><small>Chưa có poster</small></div>'}
                 </a>
                 <div class="movie-card-body">
-                    <div class="semantic-score">${Math.round(result.final_score * 100)}% phù hợp</div>
+                    <div class="semantic-score">${Math.round(result.semantic_score * 100)}% phù hợp với mô tả</div>
                     <div class="movie-card-title">${escapeHtml(result.movie.title)}</div>
                     <div class="movie-card-meta">${escapeHtml(result.movie.genres)} · ${ratingLabel(result.movie)}</div>
                     <div class="nearest-showtime">
