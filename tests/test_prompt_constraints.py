@@ -28,6 +28,12 @@ from app.services.prompt_constraints import (
             (),
         ),
         (
+            "I want a funny movie",
+            ("Hài",),
+            (),
+            (),
+        ),
+        (
             "Tôi không buồn và muốn xem phim kinh dị",
             ("Kinh dị",),
             (),

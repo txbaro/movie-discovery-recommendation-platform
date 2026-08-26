@@ -37,6 +37,7 @@ from app.services.recommendation import (
 from app.services.redis_features import QuotaResult, consume_ai_quota
 from app.services.semantic_recommendation import get_semantic_scores
 from app.services.prompt_constraints import (
+    movie_genre_match_count,
     movie_matches_any_genre,
     parse_prompt_constraints,
 )
@@ -251,8 +252,15 @@ async def natural_language_recommendations(
                 key=lambda item: item[0].start_time,
             )
         semantic_score = semantic_scores.get(movie.id, 0.0)
-        if movie_matches_any_genre(movie.genres, constraints.included_genres):
-            semantic_score = min(1.0, semantic_score + 0.10)
+        genre_match_count = movie_genre_match_count(
+            movie.genres,
+            constraints.included_genres,
+        )
+        if genre_match_count:
+            semantic_score = min(
+                1.0,
+                semantic_score + min(0.30, genre_match_count * 0.15),
+            )
         if movie_matches_any_genre(movie.genres, constraints.soft_avoid_genres):
             semantic_score = max(0.0, semantic_score - 0.20)
         behavior_score = behavior_scores.get(movie.id, 0.0)
@@ -309,6 +317,7 @@ async def natural_language_recommendations(
             reason_parts.append(translate(locale, "semantic.reason_behavior"))
         ranked.append(
             (
+                genre_match_count,
                 final_score,
                 SemanticRecommendedMovie(
                     movie=movie,
@@ -346,8 +355,8 @@ async def natural_language_recommendations(
                 ),
             )
         )
-    ranked.sort(key=lambda item: item[0], reverse=True)
-    results = [item for _score, item in ranked[: payload.limit]]
+    ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    results = [item for _genre_matches, _score, item in ranked[: payload.limit]]
 
     context_id = str(uuid4())
     db.add(

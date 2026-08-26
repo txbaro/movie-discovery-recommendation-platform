@@ -285,6 +285,71 @@ async def test_natural_language_hard_excludes_negated_genre(
 
 
 @pytest.mark.asyncio
+async def test_explicit_genre_match_ranks_before_higher_semantic_score(
+    monkeypatch, client, catalogue
+):
+    async with AsyncSessionLocal() as db:
+        horror = Movie(
+            title="Popular Horror",
+            genres="Horror,Thriller",
+            description="A frightening haunted-house story",
+            duration_minutes=100,
+        )
+        comedy = Movie(
+            title="Quiet Comedy",
+            genres="Comedy,Family",
+            description="A cheerful family story",
+            duration_minutes=105,
+        )
+        db.add_all([horror, comedy])
+        await db.flush()
+        db.add_all(
+            [
+                Showtime(
+                    movie_id=movie.id,
+                    cinema_id=catalogue["cinema_id"],
+                    start_time=utc_now() + timedelta(days=1),
+                    room_rows=0,
+                    room_cols=0,
+                    booking_mode=BookingMode.EXTERNAL_REDIRECT.value,
+                    external_booking_url=f"https://provider.example/{movie.id}",
+                    source="cinestar",
+                    external_id=f"genre-priority-showtime-{movie.id}",
+                )
+                for movie in (horror, comedy)
+            ]
+        )
+        await db.commit()
+        horror_id = horror.id
+        comedy_id = comedy.id
+
+    async def fake_semantic_scores(db, movies, prompt):
+        return (
+            {
+                movie.id: 0.99 if movie.id == horror_id else 0.01
+                for movie in movies
+            },
+            "test_embedding",
+        )
+
+    monkeypatch.setattr(
+        "app.routes.recommendations.get_semantic_scores",
+        fake_semantic_scores,
+    )
+    await register_and_login(client, "genre-priority@example.com")
+    response = await client.post(
+        "/recommendations/natural-language",
+        json={"prompt": "I want a funny movie", "limit": 10},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    result_ids = [item["movie"]["id"] for item in payload["results"]]
+    assert payload["included_genres"] == ["Hài"]
+    assert result_ids.index(comedy_id) < result_ids.index(horror_id)
+
+
+@pytest.mark.asyncio
 async def test_gemini_vectors_are_cached(monkeypatch, catalogue):
     await _add_recommendation_candidates(catalogue)
     calls: list[int] = []

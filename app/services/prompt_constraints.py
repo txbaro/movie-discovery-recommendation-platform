@@ -7,8 +7,15 @@ from dataclasses import dataclass
 # the UI. Aliases cover the common Vietnamese and English values used by TMDB
 # and the three cinema providers.
 GENRE_ALIASES: dict[str, tuple[str, ...]] = {
-    "Kinh dị": ("kinh di", "horror"),
-    "Hài": ("hai", "comedy"),
+    "Kinh dị": ("kinh di", "horror", "scary", "spooky"),
+    "Hài": (
+        "hai",
+        "comedy",
+        "funny",
+        "humorous",
+        "hilarious",
+        "lighthearted",
+    ),
     "Hành động": ("hanh dong", "action"),
     "Hoạt hình": ("hoat hinh", "animation", "anime"),
     "Tình cảm": ("tinh cam", "lang man", "romance", "romantic"),
@@ -109,3 +116,13 @@ def movie_matches_any_genre(
     canonical_genres: tuple[str, ...],
 ) -> bool:
     return any(movie_has_genre(movie_genres, genre) for genre in canonical_genres)
+
+
+def movie_genre_match_count(
+    movie_genres: str | None,
+    canonical_genres: tuple[str, ...],
+) -> int:
+    """Count explicit requested genres present in a movie's provider metadata."""
+    return sum(
+        movie_has_genre(movie_genres, genre) for genre in canonical_genres
+    )
