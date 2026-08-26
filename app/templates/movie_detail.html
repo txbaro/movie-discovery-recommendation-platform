@@ -2,7 +2,7 @@
 {% block title %}{{ movie.title }} - Movie Discovery{% endblock %}
 
 {% block content %}
-<a href="/" class="back-link">← Quay lại danh sách phim</a>
+<a href="/" class="back-link">← {{ t('common.back_movies') }}</a>
 <div class="movie-detail movie-detail-hero">
     {% if movie.poster_url %}
     <img src="{{ movie.poster_url }}" alt="{{ movie.title }}">
@@ -14,12 +14,12 @@
         <div class="genres">{{ movie.genres }}</div>
         <p>{{ movie.description }}</p>
         <p style="margin-top: 12px; color: #6b6b6b;">
-            {{ movie.duration_minutes }} phút ·
+            {{ t('movie.duration', minutes=movie.duration_minutes) }} ·
             {% if movie.rating is not none and movie.rating_source == 'tmdb' %}
             ⭐ {{ '%.1f'|format(movie.rating) }}
-            {% if movie.rating_vote_count is not none %}({{ movie.rating_vote_count }} lượt){% endif %}
+            {% if movie.rating_vote_count is not none %}({{ t('movie.votes', count=movie.rating_vote_count) }}){% endif %}
             {% else %}
-            Chưa đánh giá
+            {{ t('common.not_rated') }}
             {% endif %}
         </p>
     </div>
@@ -39,15 +39,15 @@
 <section class="schedule-section">
     <div class="section-heading">
         <div>
-            <p class="eyebrow">CHỌN THỜI GIAN</p>
-            <h2>Suất chiếu</h2>
+            <p class="eyebrow">{{ t('movie.choose_time') }}</p>
+            <h2>{{ t('movie.showtimes') }}</h2>
         </div>
     </div>
 
     <div class="date-tabs">
         {% for day in date_options %}
         <a href="/movie/{{ movie.id }}?date={{ day.isoformat() }}" class="date-tab {% if day == selected_date %}active{% endif %}">
-            <small>{{ 'Hôm nay' if loop.first else day.strftime('%a') }}</small>
+            <small>{{ t('common.today') if loop.first else weekday(day) }}</small>
             <strong>{{ day.strftime('%d/%m') }}</strong>
         </a>
         {% endfor %}
@@ -78,8 +78,8 @@
                     {% if st.format %}{{ st.format }}{% endif %}
                     {% if st.language %} · {{ st.language }}{% endif %}
                 </span>
-                <small>{% if st.price is not none %}{{ "{:,.0f}".format(st.price) }}đ{% else %}Xem giá tại rạp{% endif %}</small>
-                <em>{{ 'Mở trang rạp ↗' if st.booking_mode == 'external_redirect' else 'Chọn ghế' }}</em>
+                <small>{% if st.price is not none %}{{ "{:,.0f}".format(st.price) }}đ{% else %}{{ t('common.cinema_price') }}{% endif %}</small>
+                <em>{{ t('common.open_provider') if st.booking_mode == 'external_redirect' else t('common.choose_seat') }}</em>
             </a>
             {% endfor %}
         </div>
@@ -89,8 +89,8 @@
 {% else %}
 <div class="empty-state compact">
     <span>🗓️</span>
-    <h3>Chưa có suất chiếu trong ngày này</h3>
-    <p>Hãy thử một ngày khác trong tuần.</p>
+    <h3>{{ t('movie.no_showtimes') }}</h3>
+    <p>{{ t('movie.try_week') }}</p>
 </div>
 {% endif %}
 </section>

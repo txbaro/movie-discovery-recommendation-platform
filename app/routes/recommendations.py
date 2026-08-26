@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.dependencies import get_current_user
+from app.core.i18n import get_locale, translate, translate_genres
 from app.models.booking import Booking
 from app.models.cinema import Cinema
 from app.models.movie import Movie, normalize_movie_title
@@ -151,6 +152,7 @@ async def natural_language_recommendations(
 ):
     """Hybrid retrieval: semantic prompt + behavior + popularity + rating."""
     prompt = payload.prompt.strip()
+    locale = get_locale(request)
     constraints = parse_prompt_constraints(prompt)
     now = utc_now()
     today = now.astimezone(VIETNAM_TIMEZONE).date()
@@ -278,17 +280,33 @@ async def natural_language_recommendations(
                 + rating_score * 0.05
             )
         reason_parts = [
-            f"Phù hợp {round(semantic_score * 100)}% với mô tả",
-            f"thể loại {movie.genres or 'chưa phân loại'}",
-            f"còn {showtime_counts[movie.id]} suất chiếu",
+            translate(
+                locale,
+                "semantic.reason_match",
+                percent=round(semantic_score * 100),
+            ),
+            translate(
+                locale,
+                "semantic.reason_genre",
+                genres=movie.genres or translate(locale, "common.unknown_genre"),
+            ),
+            translate(
+                locale,
+                "semantic.reason_showtimes",
+                count=showtime_counts[movie.id],
+            ),
         ]
         if nearest_distance is not None:
             reason_parts.append(
-                f"rạp gần nhất là {nearest_cinema.name} cách "
-                f"{nearest_distance:.1f} km"
+                translate(
+                    locale,
+                    "semantic.reason_nearest",
+                    cinema=nearest_cinema.name,
+                    distance=f"{nearest_distance:.1f}",
+                )
             )
         if behavior_score > 0:
-            reason_parts.append("có liên hệ với hành vi xem trước đó")
+            reason_parts.append(translate(locale, "semantic.reason_behavior"))
         ranked.append(
             (
                 final_score,
@@ -359,9 +377,15 @@ async def natural_language_recommendations(
     return NaturalLanguageRecommendationResponse(
         context_id=context_id,
         engine=engine,
-        included_genres=list(constraints.included_genres),
-        excluded_genres=list(constraints.excluded_genres),
-        soft_avoid_genres=list(constraints.soft_avoid_genres),
+        included_genres=translate_genres(
+            locale, constraints.included_genres
+        ),
+        excluded_genres=translate_genres(
+            locale, constraints.excluded_genres
+        ),
+        soft_avoid_genres=translate_genres(
+            locale, constraints.soft_avoid_genres
+        ),
         quota_remaining=quota.remaining if quota is not None else None,
         quota_reset_seconds=quota.reset_seconds if quota is not None else None,
         results=results,

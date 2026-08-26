@@ -1,14 +1,21 @@
 {% extends "base.html" %}
-{% block title %}Vé của tôi - Movie Discovery{% endblock %}
+{% block title %}{{ t('bookings.title') }} - Movie Discovery{% endblock %}
 
 {% block content %}
-<h1 style="margin-bottom: 24px;">Vé của tôi</h1>
+<h1 style="margin-bottom: 24px;">{{ t('bookings.title') }}</h1>
 
 <div id="booking-list" class="booking-list">
-    <p>Đang tải...</p>
+    <p>{{ t('bookings.loading') }}</p>
 </div>
 
 <script>
+const bookingText = {
+    empty: {{ t('bookings.empty')|tojson }},
+    browse: {{ t('bookings.browse')|tojson }},
+    seats: {{ t('bookings.seats')|tojson }},
+    bookedAt: {{ t('bookings.booked_at')|tojson }},
+    locale: {{ ('en-US' if locale == 'en' else 'vi-VN')|tojson }},
+};
 async function loadBookings() {
     const resp = await fetch("/bookings/me");
 
@@ -21,7 +28,7 @@ async function loadBookings() {
     const listEl = document.getElementById("booking-list");
 
     if (bookings.length === 0) {
-        listEl.innerHTML = "<p>Bạn chưa đặt vé nào. <a href='/'>Xem phim đang chiếu</a>.</p>";
+        listEl.innerHTML = `<p>${bookingText.empty} <a href='/'>${bookingText.browse}</a>.</p>`;
         return;
     }
 
@@ -30,11 +37,11 @@ async function loadBookings() {
             <div>
                 <strong>${b.movie_title}</strong><br>
                 <span style="color:#6b6b6b; font-size:0.9rem;">
-                    Ghế ${b.seats.map((seat) => seat.seat_label).join(", ")}
+                    ${bookingText.seats} ${b.seats.map((seat) => seat.seat_label).join(", ")}
                 </span>
             </div>
             <div style="color:#6b6b6b; font-size:0.85rem;">
-                Đặt lúc: ${new Date(b.booked_at).toLocaleString("vi-VN")}
+                ${bookingText.bookedAt}: ${new Date(b.booked_at).toLocaleString(bookingText.locale)}
             </div>
         </div>
     `).join("");

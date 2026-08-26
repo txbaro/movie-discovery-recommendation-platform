@@ -269,6 +269,20 @@ async def test_natural_language_hard_excludes_negated_genre(
     assert horror_id not in result_ids
     assert comedy_id in result_ids
 
+    client.cookies.set("locale", "en")
+    english_response = await client.post(
+        "/recommendations/natural-language",
+        json={
+            "prompt": "I want a family comedy without horror",
+            "limit": 10,
+        },
+    )
+    assert english_response.status_code == 200
+    english_payload = english_response.json()
+    assert english_payload["included_genres"] == ["Family", "Comedy"]
+    assert english_payload["excluded_genres"] == ["Horror"]
+    assert "match with your description" in english_payload["results"][0]["reason"]
+
 
 @pytest.mark.asyncio
 async def test_gemini_vectors_are_cached(monkeypatch, catalogue):

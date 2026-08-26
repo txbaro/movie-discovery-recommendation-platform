@@ -1,3 +1,9 @@
 from fastapi.templating import Jinja2Templates
 
-templates = Jinja2Templates(directory="app/templates")
+from app.core.i18n import template_i18n_context
+
+
+templates = Jinja2Templates(
+    directory="app/templates",
+    context_processors=[template_i18n_context],
+)

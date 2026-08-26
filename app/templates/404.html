@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Không tìm thấy - Movie Discovery{% endblock %}
+{% block title %}{{ t('error.not_found_title') }} - Movie Discovery{% endblock %}
 
 {% block content %}
 <div style="text-align:center; padding: 60px 0;">
     <h1 style="font-size: 3rem; margin-bottom: 12px;">404</h1>
-    <p style="color: #6b6b6b; margin-bottom: 24px;">Không tìm thấy trang hoặc dữ liệu bạn yêu cầu.</p>
-    <a href="/" class="btn">Về trang chủ</a>
+    <p style="color: #6b6b6b; margin-bottom: 24px;">{{ t('error.not_found_body') }}</p>
+    <a href="/" class="btn">{{ t('common.back_home') }}</a>
 </div>
 {% endblock %}

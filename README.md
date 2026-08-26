@@ -115,6 +115,15 @@ Haversine distance is used because the product currently needs geographic
 proximity, not road routing or travel-time estimates. No Google Maps API is
 required for this flow.
 
+### Vietnamese and English interface
+
+The server-rendered interface supports Vietnamese and English through a shared
+translation catalogue. A secure, same-site cookie persists the selected locale
+across discovery, recommendation, cinema, authentication, and password-reset
+pages. Recommendation constraints and explanations are localized by the API;
+provider-owned movie titles, descriptions, cinema names, and addresses remain
+unchanged to preserve source accuracy.
+
 ### Behavior-based recommendation
 
 Authenticated users generate explicit discovery events such as:
@@ -166,6 +175,14 @@ Movie embeddings are cached in PostgreSQL by model and content hash. Prompt
 embeddings are cached in Redis by a hash of the normalized prompt, so repeated
 requests do not expose raw prompts in Redis keys. If Gemini is not configured or
 temporarily fails, the recommender falls back to local word/character TF-IDF.
+
+### Password-reset email delivery
+
+Password-reset links use single-use, 15-minute tokens stored in Redis. Hosted
+email is sent through the Resend REST API over HTTPS; SMTP remains an optional
+fallback for local development. The endpoint returns the same response for
+registered and unknown addresses to prevent account enumeration. Delivery
+failures are logged without exposing the recipient, API key, or reset token.
 
 ### Redis in the primary workflow
 
@@ -284,6 +301,16 @@ TMDB_API_KEY=your-tmdb-api-key
 
 The matcher uses normalized titles and runtime tolerance. A movie without a
 confident TMDB match or without TMDB votes is displayed as `Chưa đánh giá`.
+
+Optional password-reset email configuration:
+
+```dotenv
+RESEND_API_KEY=re_your_api_key
+EMAIL_FROM=Movie Discovery <noreply@your-verified-domain.com>
+```
+
+`EMAIL_FROM` must use a sender domain verified by the provider. If the Resend
+key is empty, the application falls back to the `SMTP_*` variables.
 
 Never commit `.env`; it is intentionally excluded by `.gitignore`.
 
@@ -410,7 +437,7 @@ After the first image build:
 docker compose --profile test run --rm test
 ```
 
-The suite currently contains 53 tests covering:
+The suite currently contains 64 tests covering:
 
 - authentication and application smoke tests;
 - Cinestar, Lotte, and Galaxy collector contracts;
@@ -419,6 +446,8 @@ The suite currently contains 53 tests covering:
 - event validation and deduplication;
 - Gemini request contracts, embedding caches, TF-IDF fallback, and AI quotas;
 - bilingual prompt constraints and hard genre exclusion;
+- Vietnamese/English locale persistence and safe language redirects;
+- Resend API delivery, SMTP fallback, and single-use password-reset tokens;
 - distributed collector locks;
 - collector run classification and freshness reporting;
 - scheduler configuration and provider-failure isolation;

@@ -1,12 +1,14 @@
+import logging
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.core.i18n import get_locale
 from app.core.redis_client import redis_client
 from app.core.security import create_access_token, hash_password, verify_password
 from app.services.email import EmailError, send_password_reset_email
@@ -20,6 +22,7 @@ from app.schemas.user import (
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+logger = logging.getLogger(__name__)
 
 COOKIE_NAME = "access_token"
 RESET_TOKEN_TTL_SECONDS = 15 * 60  # 15 phút
@@ -75,7 +78,9 @@ async def get_me(current_user: User = Depends(get_current_user)):
 
 @router.post("/forgot-password")
 async def forgot_password(
-    payload: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)
+    payload: ForgotPasswordRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Sinh token reset (nếu email tồn tại) và "gửi" link reset.
@@ -86,9 +91,9 @@ async def forgot_password(
     kẻ tấn công có thể dùng endpoint này để dò xem email nào đã đăng ký
     (gọi là "user enumeration attack").
 
-    CHƯA CÓ DỊCH VỤ EMAIL THẬT: vì project chưa cấu hình SMTP, link reset
-    được IN RA CONSOLE LOG thay vì gửi email thật - đủ để bạn tự test được
-    luồng đầy đủ. Xem ghi chú cách gắn email thật ở README.
+    Production gửi email qua Resend HTTPS API; SMTP chỉ là fallback local.
+    Delivery error không được trả về client để tránh làm lộ việc email có tồn
+    tại trong hệ thống hay không.
     """
     result = await db.execute(select(User).where(User.email == payload.email))
     user = result.scalar_one_or_none()
@@ -103,13 +108,22 @@ async def forgot_password(
         )
 
         try:
-            await send_password_reset_email(to=payload.email, reset_link=reset_link)
+            await send_password_reset_email(
+                to=payload.email,
+                reset_link=reset_link,
+                locale=get_locale(request),
+            )
         except EmailError as e:
             # KHÔNG raise lỗi ra cho client — nếu SMTP lỗi (config sai, hết
             # quota...), user vẫn nên thấy thông báo thành công như bình
             # thường (tránh lộ thông tin/tránh crash trải nghiệm). Lỗi thật
             # được LOG lại để admin/dev tự biết mà xử lý.
-            print(f"[LỖI GỬI EMAIL] {e}")
+            await redis_client.delete(_reset_token_key(token))
+            logger.error(
+                "Password reset email delivery failed for user_id=%s: %s",
+                user.id,
+                e,
+            )
 
     return {
         "message": "Nếu email tồn tại trong hệ thống, link đặt lại mật khẩu đã được gửi."

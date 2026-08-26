@@ -2,7 +2,7 @@
 {% block title %}{{ cinema.name }} - Movie Discovery{% endblock %}
 
 {% block content %}
-<a href="/nearby-cinemas" class="back-link">← Quay lại danh sách rạp</a>
+<a href="/nearby-cinemas" class="back-link">← {{ t('common.back_cinemas') }}</a>
 <section class="cinema-detail-header">
     <div>
         <span class="source-badge source-{{ cinema.source }}">{{ cinema.source or 'internal' }}</span>
@@ -14,7 +14,7 @@
 <div class="date-tabs cinema-date-tabs">
     {% for day in date_options %}
     <a href="/cinema/{{ cinema.id }}?date={{ day.isoformat() }}" class="date-tab {% if day == selected_date %}active{% endif %}">
-        <small>{{ 'Hôm nay' if loop.first else day.strftime('%a') }}</small>
+        <small>{{ t('common.today') if loop.first else weekday(day) }}</small>
         <strong>{{ day.strftime('%d/%m') }}</strong>
     </a>
     {% endfor %}
@@ -26,7 +26,7 @@
     <article class="cinema-movie-row">
         <div class="cinema-movie-info">
             <a href="/movie/{{ group.movie.id }}?date={{ selected_date.isoformat() }}" data-track-movie-id="{{ group.movie.id }}"><h2>{{ group.movie.title }}</h2></a>
-            <p>{{ group.movie.genres }} · {{ group.movie.duration_minutes }} phút</p>
+            <p>{{ group.movie.genres }} · {{ t('movie.duration', minutes=group.movie.duration_minutes) }}</p>
         </div>
         <div class="showtime-list">
             {% for item in group.showtimes %}
@@ -38,9 +38,9 @@
                 {% if st.booking_mode == 'external_redirect' %}target="_blank" rel="noopener noreferrer"{% endif %}
             >
                 <strong>{{ st.start_time.strftime('%H:%M') }}</strong>
-                <span>{{ st.format or 'Tiêu chuẩn' }}{% if st.language %} · {{ st.language }}{% endif %}</span>
-                <small>{% if st.price is not none %}{{ "{:,.0f}".format(st.price) }}đ{% else %}Xem giá tại rạp{% endif %}</small>
-                <em>{{ 'Mở trang rạp ↗' if st.booking_mode == 'external_redirect' else 'Chọn ghế' }}</em>
+                <span>{{ st.format or t('common.standard') }}{% if st.language %} · {{ st.language }}{% endif %}</span>
+                <small>{% if st.price is not none %}{{ "{:,.0f}".format(st.price) }}đ{% else %}{{ t('common.cinema_price') }}{% endif %}</small>
+                <em>{{ t('common.open_provider') if st.booking_mode == 'external_redirect' else t('common.choose_seat') }}</em>
             </a>
             {% endfor %}
         </div>
@@ -50,8 +50,8 @@
 {% else %}
 <div class="empty-state compact">
     <span>🎞️</span>
-    <h3>Rạp chưa có suất chiếu trong ngày này</h3>
-    <p>Thử chọn một ngày khác.</p>
+    <h3>{{ t('cinema.no_showtimes') }}</h3>
+    <p>{{ t('cinema.try_date') }}</p>
 </div>
 {% endif %}
 {% endblock %}

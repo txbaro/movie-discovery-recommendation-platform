@@ -12,7 +12,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.database import get_db
+from app.core.i18n import SUPPORTED_LOCALES
 from app.core.templates import templates
 from app.core.redis_client import redis_client
 from app.models.movie import Movie
@@ -27,6 +29,28 @@ from app.services.discovery import VIETNAM_TIMEZONE, utc_now, vietnamese_date_ra
 from app.services.collector_monitoring import get_collector_freshness
 
 router = APIRouter(tags=["pages"])
+
+
+@router.get("/language/{locale}")
+async def switch_language(
+    locale: str,
+    next_path: str = Query(default="/", alias="next"),
+):
+    if locale not in SUPPORTED_LOCALES:
+        next_path = "/"
+        locale = "vi"
+    if not next_path.startswith("/") or next_path.startswith("//"):
+        next_path = "/"
+    response = RedirectResponse(next_path, status_code=303)
+    response.set_cookie(
+        "locale",
+        locale,
+        max_age=365 * 24 * 60 * 60,
+        httponly=True,
+        samesite="lax",
+        secure=settings.COOKIE_SECURE,
+    )
+    return response
 
 
 @router.get("/")

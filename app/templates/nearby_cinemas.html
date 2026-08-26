@@ -1,19 +1,19 @@
 {% extends "base.html" %}
-{% block title %}Rạp gần bạn - Movie Discovery{% endblock %}
+{% block title %}{{ t('nearby.title') }} - Movie Discovery{% endblock %}
 
 {% block content %}
 <section class="nearby-hero">
     <div>
-        <p class="eyebrow">KHÁM PHÁ QUANH BẠN</p>
-        <h1>Tìm rạp gần nhất</h1>
-        <p>Vị trí chỉ được dùng trong trình duyệt để tính khoảng cách và không được lưu lại.</p>
+        <p class="eyebrow">{{ t('nearby.eyebrow') }}</p>
+        <h1>{{ t('nearby.heading') }}</h1>
+        <p>{{ t('nearby.intro') }}</p>
     </div>
-    <button id="locate-button" class="btn" type="button">⌖ Dùng vị trí của tôi</button>
+    <button id="locate-button" class="btn" type="button">{{ t('nearby.use_location') }}</button>
 </section>
 
 <div class="nearby-controls">
     <label class="filter-field">
-        <span>Bán kính</span>
+        <span>{{ t('semantic.radius') }}</span>
         <select id="radius-select">
             <option value="5">5 km</option>
             <option value="10" selected>10 km</option>
@@ -21,18 +21,18 @@
             <option value="50">50 km</option>
         </select>
     </label>
-    <span class="control-divider">hoặc</span>
+    <span class="control-divider">{{ t('nearby.or') }}</span>
     <form id="city-form" class="city-search-form">
         <label class="filter-field">
-            <span>Tìm không cần chia sẻ vị trí</span>
-            <input id="city-input" placeholder="Nhập thành phố, ví dụ Hồ Chí Minh">
+            <span>{{ t('nearby.city_without_location') }}</span>
+            <input id="city-input" placeholder="{{ t('nearby.city_placeholder') }}">
         </label>
-        <button class="btn btn-secondary" type="submit">Tìm theo thành phố</button>
+        <button class="btn btn-secondary" type="submit">{{ t('nearby.search_city') }}</button>
     </form>
 </div>
 
 <div id="nearby-status" class="nearby-status" role="status">
-    Chọn một cách tìm kiếm để xem các rạp có suất chiếu sắp tới.
+    {{ t('nearby.initial') }}
 </div>
 <div id="nearby-results" class="nearby-grid"></div>
 
@@ -41,6 +41,26 @@ const statusBox = document.getElementById("nearby-status");
 const resultsBox = document.getElementById("nearby-results");
 const locateButton = document.getElementById("locate-button");
 const radiusSelect = document.getElementById("radius-select");
+const nearbyText = {
+    noneTitle: {{ t('nearby.none_title')|tojson }},
+    noneHint: {{ t('nearby.none_hint')|tojson }},
+    none: {{ t('nearby.none')|tojson }},
+    found: {{ t('nearby.found', count='{count}')|tojson }},
+    straightLine: {{ t('nearby.straight_line')|tojson }},
+    viewShowtimes: {{ t('common.view_showtimes')|tojson }},
+    internal: {{ t('common.internal')|tojson }},
+    searching: {{ t('nearby.searching')|tojson }},
+    loading: {{ t('nearby.loading')|tojson }},
+    loadFailed: {{ t('nearby.load_failed')|tojson }},
+    tryAgain: {{ t('common.try_again')|tojson }},
+    geoUnsupported: {{ t('nearby.geo_unsupported')|tojson }},
+    geoRequest: {{ t('nearby.geo_request')|tojson }},
+    geoDenied: {{ t('nearby.geo_denied')|tojson }},
+    geoUnavailable: {{ t('nearby.geo_unavailable')|tojson }},
+    geoTimeout: {{ t('nearby.geo_timeout')|tojson }},
+    geoFailed: {{ t('nearby.geo_failed')|tojson }},
+    cityRequired: {{ t('nearby.city_required')|tojson }},
+};
 
 function escapeHtml(value) {
     const node = document.createElement("div");
@@ -55,54 +75,54 @@ function providerClass(source) {
 
 function renderCinemas(cinemas, usesLocation) {
     if (cinemas.length === 0) {
-        resultsBox.innerHTML = `<div class="empty-state"><span>📍</span><h3>Không tìm thấy rạp</h3><p>Hãy tăng bán kính hoặc thử thành phố khác.</p></div>`;
-        statusBox.textContent = "Không có rạp phù hợp.";
+        resultsBox.innerHTML = `<div class="empty-state"><span>📍</span><h3>${nearbyText.noneTitle}</h3><p>${nearbyText.noneHint}</p></div>`;
+        statusBox.textContent = nearbyText.none;
         return;
     }
-    statusBox.textContent = `Tìm thấy ${cinemas.length} rạp có suất chiếu sắp tới.`;
+    statusBox.textContent = nearbyText.found.replace("{count}", cinemas.length);
     resultsBox.innerHTML = cinemas.map((cinema, index) => `
         <article class="nearby-card">
             <div class="nearby-rank">${index + 1}</div>
             <div class="nearby-card-content">
-                <span class="source-badge ${providerClass(cinema.source)}">${escapeHtml(cinema.source || "internal")}</span>
+                <span class="source-badge ${providerClass(cinema.source)}">${escapeHtml(cinema.source || nearbyText.internal)}</span>
                 <h2>${escapeHtml(cinema.name)}</h2>
                 <p>${escapeHtml(cinema.address)}</p>
                 <p class="nearby-city">${escapeHtml(cinema.city)}</p>
             </div>
             <div class="nearby-card-action">
                 ${usesLocation && cinema.distance_km !== null
-                    ? `<strong>${cinema.distance_km.toFixed(2)} km</strong><small>đường chim bay</small>`
+                    ? `<strong>${cinema.distance_km.toFixed(2)} km</strong><small>${nearbyText.straightLine}</small>`
                     : ""}
-                <a class="btn" href="/cinema/${cinema.id}">Xem suất chiếu</a>
+                <a class="btn" href="/cinema/${cinema.id}">${nearbyText.viewShowtimes}</a>
             </div>
         </article>
     `).join("");
 }
 
 async function loadCinemas(params, usesLocation) {
-    statusBox.textContent = "Đang tìm các rạp có suất chiếu...";
-    resultsBox.innerHTML = `<div class="loading-card">Đang tải dữ liệu</div>`;
+    statusBox.textContent = nearbyText.searching;
+    resultsBox.innerHTML = `<div class="loading-card">${nearbyText.loading}</div>`;
     params.set("has_upcoming_showtimes", "true");
     params.set("limit", "100");
     try {
         const response = await fetch(`/cinemas?${params.toString()}`);
-        if (!response.ok) throw new Error("Không thể tải danh sách rạp");
+        if (!response.ok) throw new Error(nearbyText.loadFailed);
         renderCinemas(await response.json(), usesLocation);
     } catch (error) {
         resultsBox.innerHTML = "";
-        statusBox.textContent = `${error.message}. Vui lòng thử lại.`;
+        statusBox.textContent = `${error.message}. ${nearbyText.tryAgain}.`;
         statusBox.classList.add("error-msg");
     }
 }
 
 locateButton.addEventListener("click", () => {
     if (!navigator.geolocation) {
-        statusBox.textContent = "Trình duyệt này không hỗ trợ lấy vị trí.";
+        statusBox.textContent = nearbyText.geoUnsupported;
         return;
     }
     locateButton.disabled = true;
     statusBox.classList.remove("error-msg");
-    statusBox.textContent = "Đang xin quyền truy cập vị trí...";
+    statusBox.textContent = nearbyText.geoRequest;
     navigator.geolocation.getCurrentPosition(
         ({coords}) => {
             const params = new URLSearchParams({
@@ -114,11 +134,11 @@ locateButton.addEventListener("click", () => {
         },
         (error) => {
             const messages = {
-                1: "Bạn đã từ chối chia sẻ vị trí. Có thể tìm theo thành phố bên dưới.",
-                2: "Không xác định được vị trí hiện tại.",
-                3: "Quá thời gian chờ vị trí.",
+                1: nearbyText.geoDenied,
+                2: nearbyText.geoUnavailable,
+                3: nearbyText.geoTimeout,
             };
-            statusBox.textContent = messages[error.code] || "Không thể lấy vị trí.";
+            statusBox.textContent = messages[error.code] || nearbyText.geoFailed;
             locateButton.disabled = false;
         },
         {enableHighAccuracy: false, timeout: 10000, maximumAge: 300000},
@@ -129,7 +149,7 @@ document.getElementById("city-form").addEventListener("submit", (event) => {
     event.preventDefault();
     const city = document.getElementById("city-input").value.trim();
     if (!city) {
-        statusBox.textContent = "Hãy nhập tên thành phố.";
+        statusBox.textContent = nearbyText.cityRequired;
         return;
     }
     loadCinemas(new URLSearchParams({city}), false);

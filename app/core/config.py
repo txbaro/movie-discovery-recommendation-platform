@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     COLLECTOR_SYNC_DAYS: int = 7
     ENABLE_INTERNAL_BOOKING: bool = False
 
+    RESEND_API_KEY: str = ""
+    RESEND_API_BASE_URL: str = "https://api.resend.com"
+    EMAIL_FROM: str = ""
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587
     SMTP_USERNAME: str = ""

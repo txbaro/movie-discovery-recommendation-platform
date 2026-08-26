@@ -35,6 +35,10 @@ services:
         sync: false
       - key: TMDB_API_KEY
         sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
       - key: GALAXY_COOKIE
         sync: false
       - key: GALAXY_USER_AGENT

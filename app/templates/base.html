@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="{{ locale }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -21,16 +21,22 @@
     <nav class="navbar">
         <a href="/" class="navbar-brand">🎬 Movie Discovery</a>
         <div class="navbar-links">
-            <a href="/nearby-cinemas">Rạp gần bạn</a>
+            <a href="/nearby-cinemas">{{ t('nav.nearby') }}</a>
+
+            <span class="language-switch" aria-label="{{ t('language.label') }}">
+                <a href="/language/vi" data-language="vi" {% if locale == 'vi' %}aria-current="true"{% endif %}>VI</a>
+                <span>/</span>
+                <a href="/language/en" data-language="en" {% if locale == 'en' %}aria-current="true"{% endif %}>EN</a>
+            </span>
 
             <span id="guest-links">
-                <a href="/login">Đăng nhập</a>
-                <a href="/register">Đăng ký</a>
+                <a href="/login">{{ t('nav.login') }}</a>
+                <a href="/register">{{ t('nav.register') }}</a>
             </span>
 
             <span id="user-links" style="display:none;">
                 <span id="user-name" style="margin-left:24px; color:#ccc;"></span>
-                <a href="#" id="logout-link">Đăng xuất</a>
+                <a href="#" id="logout-link">{{ t('nav.logout') }}</a>
             </span>
         </div>
     </nav>
@@ -40,6 +46,10 @@
     </main>
 
     <script>
+    document.querySelectorAll("[data-language]").forEach((link) => {
+        link.href = `/language/${link.dataset.language}?next=${encodeURIComponent(location.pathname + location.search)}`;
+    });
+
     // Chạy trên MỌI trang (nhờ đặt trong base.html) — kiểm tra trạng thái
     // đăng nhập bằng cách gọi GET /auth/me. Cookie JWT tự động gửi kèm
     // (same-origin), không cần code thêm gì để đính token.

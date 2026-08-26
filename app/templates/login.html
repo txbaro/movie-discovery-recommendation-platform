@@ -1,21 +1,21 @@
 {% extends "base.html" %}
-{% block title %}Đăng nhập - Movie Discovery{% endblock %}
+{% block title %}{{ t('auth.login_title') }} - Movie Discovery{% endblock %}
 
 {% block content %}
-<h1 style="text-align:center; margin-bottom: 24px;">Đăng nhập</h1>
+<h1 style="text-align:center; margin-bottom: 24px;">{{ t('auth.login_title') }}</h1>
 
 <form class="auth-form" id="login-form">
-    <input type="email" id="email" placeholder="Email" required>
-    <input type="password" id="password" placeholder="Mật khẩu" required>
-    <button type="submit" class="btn">Đăng nhập</button>
+    <input type="email" id="email" placeholder="{{ t('common.email') }}" required>
+    <input type="password" id="password" placeholder="{{ t('common.password') }}" required>
+    <button type="submit" class="btn">{{ t('auth.login_title') }}</button>
     <p id="message" class="error-msg"></p>
 </form>
 
 <p style="text-align:center; margin-top: 16px;">
-    Chưa có tài khoản? <a href="/register">Đăng ký</a>
+    {{ t('auth.no_account') }} <a href="/register">{{ t('auth.register_action') }}</a>
 </p>
 <p style="text-align:center; margin-top: 8px;">
-    <a href="/forgot-password">Quên mật khẩu?</a>
+    <a href="/forgot-password">{{ t('auth.forgot') }}</a>
 </p>
 
 <script>
@@ -39,7 +39,7 @@ form.addEventListener("submit", async (e) => {
         window.location.href = "/";
     } else {
         const data = await resp.json();
-        messageEl.textContent = data.detail || "Đăng nhập thất bại.";
+        messageEl.textContent = data.detail || {{ t('auth.login_failed')|tojson }};
     }
 });
 </script>
