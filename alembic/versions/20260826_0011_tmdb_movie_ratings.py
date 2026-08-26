@@ -18,13 +18,16 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "movies",
-        sa.Column("rating_vote_count", sa.Integer(), nullable=True),
+    # Render can briefly overlap old/new instances during a deploy. IF NOT
+    # EXISTS also lets this migration recover if a previous attempt created a
+    # column but stopped before Alembic recorded the revision.
+    op.execute(
+        "ALTER TABLE movies ADD COLUMN IF NOT EXISTS "
+        "rating_vote_count INTEGER"
     )
-    op.add_column(
-        "movies",
-        sa.Column("rating_source", sa.String(50), nullable=True),
+    op.execute(
+        "ALTER TABLE movies ADD COLUMN IF NOT EXISTS "
+        "rating_source VARCHAR(50)"
     )
     op.alter_column(
         "movies",
@@ -54,5 +57,5 @@ def downgrade() -> None:
         nullable=False,
         server_default="0",
     )
-    op.drop_column("movies", "rating_source")
-    op.drop_column("movies", "rating_vote_count")
+    op.execute("ALTER TABLE movies DROP COLUMN IF EXISTS rating_source")
+    op.execute("ALTER TABLE movies DROP COLUMN IF EXISTS rating_vote_count")
