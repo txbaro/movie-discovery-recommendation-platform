@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
                 await listener_task
 
 
-app = FastAPI(title="Movie Booking System", lifespan=lifespan)
+app = FastAPI(title="Movie Discovery & Recommendation Platform", lifespan=lifespan)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 

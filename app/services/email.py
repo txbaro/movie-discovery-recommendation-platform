@@ -65,4 +65,8 @@ async def send_password_reset_email(to: str, reset_link: str) -> None:
         </p>
     </div>
     """
-    await send_email(to=to, subject="Đặt lại mật khẩu - Movie Booking", html_body=html_body)
+    await send_email(
+        to=to,
+        subject="Đặt lại mật khẩu - Movie Discovery",
+        html_body=html_body,
+    )
