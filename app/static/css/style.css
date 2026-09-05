@@ -31,6 +31,7 @@ body {
     color: white; text-decoration: none; margin-left: 24px; font-size: 0.9rem;
 }
 .navbar-links a:hover { color: var(--primary); }
+.navbar-links .user-profile-link { color: #ccc; font-weight: 650; }
 
 .container { max-width: 1180px; margin: 0 auto; padding: 32px 24px 64px; }
 
@@ -326,6 +327,22 @@ form.auth-form { max-width: 360px; margin: 0 auto; display: flex; flex-direction
 form.auth-form input {
     padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 1rem;
 }
+
+.profile-card {
+    max-width: 620px; margin: 12px auto; padding: 30px; background: white;
+    border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow);
+}
+.profile-card h1 { margin: 4px 0 6px; }
+.profile-card > p { color: var(--muted); }
+.profile-form { display: flex; flex-direction: column; gap: 15px; margin-top: 26px; }
+.profile-form label { display: flex; flex-direction: column; gap: 7px; font-size: .88rem; font-weight: 700; }
+.profile-form input { padding: 11px 12px; border: 1px solid var(--border); border-radius: 8px; font: inherit; }
+.avatar-editor { display: flex; align-items: center; gap: 16px; }
+.avatar-preview, .avatar-fallback {
+    display: grid; place-items: center; width: 88px; height: 88px; flex: 0 0 88px;
+    border-radius: 50%; object-fit: cover; color: white; background: #7d1017; font-size: 1.5rem; font-weight: 800;
+}
+.avatar-editor input { max-width: 330px; padding: 8px; }
 
 .booking-list { display: flex; flex-direction: column; gap: 12px; }
 .booking-item {

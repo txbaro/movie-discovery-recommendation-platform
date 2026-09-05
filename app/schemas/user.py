@@ -16,6 +16,7 @@ class UserRead(BaseModel):
     id: int
     email: EmailStr
     full_name: str
+    avatar_url: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

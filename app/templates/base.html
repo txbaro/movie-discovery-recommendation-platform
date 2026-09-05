@@ -35,7 +35,7 @@
             </span>
 
             <span id="user-links" style="display:none;">
-                <span id="user-name" style="margin-left:24px; color:#ccc;"></span>
+                <a href="/profile" id="user-name" class="user-profile-link" aria-label="{{ t('nav.profile') }}"></a>
                 <a href="#" id="logout-link">{{ t('nav.logout') }}</a>
             </span>
         </div>
@@ -60,7 +60,9 @@
                 const user = await resp.json();
                 document.getElementById("guest-links").style.display = "none";
                 document.getElementById("user-links").style.display = "inline";
-                document.getElementById("user-name").textContent = user.full_name;
+                const userName = document.getElementById("user-name");
+                userName.textContent = user.full_name;
+                userName.setAttribute("aria-label", `Quản lý hồ sơ của ${user.full_name}`);
             }
             // Nếu resp không ok (401 - chưa đăng nhập): giữ nguyên trạng thái
             // mặc định của HTML (guest-links đã hiện sẵn), không cần làm gì.

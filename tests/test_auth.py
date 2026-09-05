@@ -59,6 +59,36 @@ async def test_login_cookie_can_be_secured_for_production(client, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_user_can_update_name_and_avatar(client, monkeypatch, tmp_path):
+    await register_and_login(client, "profile@example.com")
+    monkeypatch.setattr(auth, "AVATAR_DIRECTORY", tmp_path)
+
+    response = await client.patch(
+        "/auth/me",
+        data={"full_name": "Tên mới"},
+        files={"avatar": ("avatar.png", b"\x89PNG\r\n\x1a\nimage", "image/png")},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["full_name"] == "Tên mới"
+    avatar_url = response.json()["avatar_url"]
+    assert avatar_url and avatar_url.endswith(".png")
+    assert len(list(tmp_path.glob("*.png"))) == 1
+    assert (await client.get("/auth/me")).json()["avatar_url"] == avatar_url
+
+
+@pytest.mark.asyncio
+async def test_user_cannot_upload_a_non_image_avatar(client):
+    await register_and_login(client, "bad-avatar@example.com")
+    response = await client.patch(
+        "/auth/me",
+        data={"full_name": "Test User"},
+        files={"avatar": ("avatar.txt", b"not an image", "text/plain")},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_forgot_password_sends_single_use_reset_link(client, monkeypatch):
     await register_and_login(client, "reset@example.com")
     links = []

@@ -14,10 +14,12 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.dependencies import get_current_user
 from app.core.i18n import SUPPORTED_LOCALES
 from app.core.templates import templates
 from app.core.redis_client import redis_client
 from app.models.movie import Movie
+from app.models.user import User
 from app.models.cinema import Cinema
 from app.models.cinema_room import CinemaRoom
 from app.models.showtime import Showtime
@@ -308,6 +310,13 @@ async def register_page(request: Request):
 @router.get("/my-bookings")
 async def my_bookings_page(request: Request):
     return templates.TemplateResponse(request=request, name="my_bookings.html")
+
+
+@router.get("/profile")
+async def profile_page(request: Request, current_user: User = Depends(get_current_user)):
+    return templates.TemplateResponse(
+        request=request, name="profile.html", context={"user": current_user}
+    )
 
 @router.get("/forgot-password")
 async def forgot_password_page(request: Request):

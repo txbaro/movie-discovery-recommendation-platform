@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}{{ t('profile.title') }}{% endblock %}
+{% block content %}
+<section class="profile-card">
+    <p class="eyebrow">TÀI KHOẢN</p>
+    <h1>{{ t('profile.title') }}</h1>
+    <p>{{ t('profile.intro') }}</p>
+
+    <form id="profile-form" class="profile-form" enctype="multipart/form-data">
+        <div class="avatar-editor">
+            {% if user.avatar_url %}
+            <img id="avatar-preview" class="avatar-preview" src="{{ user.avatar_url }}" alt="Ảnh đại diện hiện tại">
+            {% else %}
+            <div id="avatar-preview" class="avatar-fallback" aria-label="Ảnh đại diện mặc định">{{ user.full_name[:1].upper() }}</div>
+            {% endif %}
+            <label>{{ t('profile.avatar') }}
+                <input id="avatar-input" name="avatar" type="file" accept="image/png,image/jpeg,image/gif,image/webp">
+                <small>{{ t('profile.avatar_hint') }}</small>
+            </label>
+        </div>
+        <label for="full-name">{{ t('profile.display_name') }}
+            <input id="full-name" name="full_name" value="{{ user.full_name }}" maxlength="255" required autocomplete="name">
+        </label>
+        <label>Email
+            <input value="{{ user.email }}" disabled>
+        </label>
+        <button class="btn" type="submit">{{ t('profile.save') }}</button>
+        <p id="profile-message" class="error-msg" role="status"></p>
+    </form>
+</section>
+<script>
+const form = document.getElementById("profile-form");
+const avatarInput = document.getElementById("avatar-input");
+let preview = document.getElementById("avatar-preview");
+const message = document.getElementById("profile-message");
+
+avatarInput.addEventListener("change", () => {
+    const file = avatarInput.files[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) { message.textContent = "{{ t('profile.avatar_too_large') }}"; return; }
+    const image = document.createElement("img");
+    image.id = "avatar-preview"; image.className = "avatar-preview"; image.alt = "Xem trước ảnh đại diện";
+    image.src = URL.createObjectURL(file);
+    preview.replaceWith(image);
+    preview = image;
+});
+
+form.addEventListener("submit", async (event) => {
+    event.preventDefault(); message.className = "error-msg"; message.textContent = "{{ t('profile.saving') }}";
+    const response = await fetch("/auth/me", {method: "PATCH", body: new FormData(form)});
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) { message.textContent = data.detail || "{{ t('profile.save_failed') }}"; return; }
+    message.className = "success-msg"; message.textContent = "{{ t('profile.saved') }}";
+    const navName = document.getElementById("user-name"); if (navName) navName.textContent = data.full_name;
+});
+</script>
+{% endblock %}

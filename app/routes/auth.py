@@ -1,7 +1,19 @@
 import logging
 import secrets
+from pathlib import Path
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,6 +38,14 @@ logger = logging.getLogger(__name__)
 
 COOKIE_NAME = "access_token"
 RESET_TOKEN_TTL_SECONDS = 15 * 60  # 15 phút
+AVATAR_DIRECTORY = Path(__file__).resolve().parent.parent / "static/uploads/avatars"
+MAX_AVATAR_SIZE = 3 * 1024 * 1024
+AVATAR_SIGNATURES = (
+    (b"\x89PNG\r\n\x1a\n", "png"),
+    (b"\xff\xd8\xff", "jpg"),
+    (b"GIF87a", "gif"),
+    (b"GIF89a", "gif"),
+)
 
 
 def _reset_token_key(token: str) -> str:
@@ -73,6 +93,78 @@ async def logout(response: Response):
 
 @router.get("/me", response_model=UserRead)
 async def get_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+def _avatar_extension(content: bytes) -> str | None:
+    for signature, extension in AVATAR_SIGNATURES:
+        if content.startswith(signature):
+            return extension
+    if (
+        len(content) >= 12
+        and content[:4] == b"RIFF"
+        and content[8:12] == b"WEBP"
+    ):
+        return "webp"
+    return None
+
+
+def _local_avatar_path(avatar_url: str | None) -> Path | None:
+    prefix = "/static/uploads/avatars/"
+    if not avatar_url or not avatar_url.startswith(prefix):
+        return None
+    filename = avatar_url.removeprefix(prefix)
+    if Path(filename).name != filename:
+        return None
+    return AVATAR_DIRECTORY / filename
+
+
+@router.patch("/me", response_model=UserRead)
+async def update_me(
+    full_name: str = Form(...),
+    avatar: UploadFile | None = File(default=None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update profile data and optionally replace the locally stored avatar."""
+    name = full_name.strip()
+    if not 1 <= len(name) <= 255:
+        raise HTTPException(status_code=422, detail="Tên phải có từ 1 đến 255 ký tự")
+
+    new_avatar_url: str | None = None
+    if avatar is not None and avatar.filename:
+        content = await avatar.read(MAX_AVATAR_SIZE + 1)
+        extension = _avatar_extension(content)
+        if len(content) > MAX_AVATAR_SIZE:
+            raise HTTPException(status_code=413, detail="Ảnh đại diện tối đa 3 MB")
+        if extension is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Avatar chỉ hỗ trợ ảnh PNG, JPG, GIF hoặc WebP",
+            )
+        AVATAR_DIRECTORY.mkdir(parents=True, exist_ok=True)
+        filename = f"{uuid4().hex}.{extension}"
+        avatar_path = AVATAR_DIRECTORY / filename
+        avatar_path.write_bytes(content)
+        new_avatar_url = f"/static/uploads/avatars/{filename}"
+
+    old_avatar_path = _local_avatar_path(current_user.avatar_url)
+    current_user.full_name = name
+    if new_avatar_url is not None:
+        current_user.avatar_url = new_avatar_url
+    try:
+        await db.commit()
+        await db.refresh(current_user)
+    except Exception:
+        await db.rollback()
+        if new_avatar_url is not None:
+            new_avatar_path = _local_avatar_path(new_avatar_url)
+            if new_avatar_path is not None:
+                new_avatar_path.unlink(missing_ok=True)
+        raise
+
+    if new_avatar_url is not None and old_avatar_path is not None:
+        old_avatar_path.unlink(missing_ok=True)
     return current_user
 
 
